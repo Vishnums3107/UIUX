@@ -1,0 +1,32 @@
+{
+  "name": "tamil-learning-backend",
+  "version": "1.0.0",
+  "description": "Behavior-Driven Adaptive Tamil Learning Platform - Backend API",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "seed": "node seed.js",
+    "test": "node --test",
+    "test:coverage": "c8 --reporter=text --reporter=lcov --check-coverage --lines 60 --functions 60 --branches 50 --statements 60 node --test",
+    "lint": "eslint . --ext .js"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "express-rate-limit": "^7.1.4",
+    "express-validator": "^7.0.1",
+    "helmet": "^8.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^7.6.3",
+    "nodemailer": "^8.0.2"
+  },
+  "devDependencies": {
+    "c8": "^11.0.0",
+    "eslint": "^10.0.3",
+    "mongodb-memory-server": "^11.0.1",
+    "supertest": "^7.2.2"
+  }
+}
