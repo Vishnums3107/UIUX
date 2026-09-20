@@ -2,13 +2,15 @@
 
 A behavior-driven adaptive Tamil learning platform that dynamically adjusts interface complexity based on learner performance. Built with React, Node.js, Express, and MongoDB.
 
+> Launch Readiness Source of Truth: use [docs/DEPLOYMENT_READY_IMPLEMENTATION_PLAN.md](docs/DEPLOYMENT_READY_IMPLEMENTATION_PLAN.md) as the single execution and sign-off document for deployment readiness.
+
 ---
 
 ## ✨ Features
 
 ### Core Functionality
 - **🔐 JWT Authentication** — Secure register/login with bcrypt password hashing (12 rounds)
-- **📚 Tamil Lessons** — 53 questions across Uyir (vowels), Mei (consonants), Uyir-Mei (combined), Grammar, and Sentences
+- **📚 Tamil Curriculum** — 333 staged lessons across script basics, vocabulary, grammar, dialogues, reading, writing, and mastery tests
 - **📊 Interaction Monitoring** — Tracks completion time, errors, hint usage, retries, idle time (30s threshold)
 - **🧠 Skill Estimation Engine** — Real-time proficiency score (0–100) using weighted behavioral metrics
 - **🎨 Adaptive UI** — Interface dynamically adapts between Beginner / Intermediate / Advanced modes
@@ -19,7 +21,7 @@ A behavior-driven adaptive Tamil learning platform that dynamically adjusts inte
 
 ### Tamil Content
 - 🗣️ **Pronunciation guidance** — Transliteration, phonetic notes, syllable stress patterns
-- 📝 **53 lessons** — 5 categories × 3 difficulty levels with bilingual content
+- 📝 **333 lessons** — 10 progressive stages with bilingual content and multiple exercise types
 - 🔤 **MCQ & Text Input** — Multiple question types adapted per level
 - 💡 **Hints & Explanations** — Bilingual (English + Tamil) throughout
 
@@ -57,7 +59,7 @@ A behavior-driven adaptive Tamil learning platform that dynamically adjusts inte
 │   ├── models/              # Mongoose schemas (User, Lesson, LessonAttempt)
 │   ├── routes/              # Express route definitions
 │   ├── utils/               # Skill estimation engine
-│   ├── seed.js              # Database seeder (53 Tamil lessons)
+│   ├── seed.js              # Database seeder (333 staged Tamil lessons)
 │   ├── server.js            # Entry point
 │   ├── .env.example         # Environment variables template
 │   └── package.json
@@ -74,6 +76,11 @@ A behavior-driven adaptive Tamil learning platform that dynamically adjusts inte
 │   ├── ARCHITECTURE.md      # System architecture & data flows
 │   ├── API_DOCUMENTATION.md # Complete API endpoint reference
 │   ├── DEPLOYMENT.md        # Step-by-step deployment guide
+│   ├── DEPLOYMENT_READY_IMPLEMENTATION_PLAN.md # Launch execution plan and gates
+│   ├── PRODUCTION_ROLLOUT_RUNBOOK.md # Release-day monitored rollout procedure
+│   ├── ROLLBACK_PLAYBOOK.md # Incident rollback execution guide
+│   ├── HYPERCARE_RUNBOOK.md # 7-day post-launch monitoring and closeout
+│   ├── PHASE0_SCOPE_SIGNOFF.md # Engineering + QA scope-freeze sign-off record
 │   └── ENV_CONFIGURATION.md # Environment variable guide
 └── .gitignore
 ```
@@ -103,7 +110,7 @@ cp .env.example .env
 ```bash
 cd backend
 npm install
-npm run seed    # Seed 53 Tamil lessons
+npm run seed    # Seed 333 staged Tamil lessons
 npm run dev     # Start with auto-reload (http://localhost:5000)
 ```
 
@@ -129,6 +136,7 @@ npm run dev     # Start dev server (http://localhost:5173)
 # Backend unit + integration tests (mongodb-memory-server)
 cd backend
 npm test
+npm run test:contracts
 npm run lint
 npm run test:coverage
 
@@ -230,17 +238,20 @@ node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
 ## 🧠 Skill Score Formula
 
 ```
-skill_score = (0.4 × success_rate) + (0.2 × time_efficiency) − (0.2 × error_rate) − (0.2 × hint_dependency)
+raw_score = (0.45 × success_rate) + (0.20 × time_efficiency) + (0.15 × error_control) + (0.10 × hint_independence) + (0.06 × retry_control) + (0.04 × focus_score)
+final_skill = w × raw_score + (1 − w) × current_skill, where w = 0.35 + 0.30 × min(1, N/20)
 ```
 
 | Metric | Weight | Measures |
 |---|---|---|
-| Success Rate | +0.4 | % correct in last 20 attempts |
-| Time Efficiency | +0.2 | Speed vs 30s expected time |
-| Error Rate | −0.2 | Average errors per question |
-| Hint Dependency | −0.2 | Average hint usage per question |
+| Success Rate | +0.45 | Recency-weighted correctness |
+| Time Efficiency | +0.20 | Active speed vs 30s expected time |
+| Error Control | +0.15 | `100 − error_rate` |
+| Hint Independence | +0.10 | `100 − hint_dependency` |
+| Retry Control | +0.06 | `100 − retry_dependency` |
+| Focus Score | +0.04 | `100 − idle_penalty` |
 
-**Smoothing:** `final = 0.6 × new + 0.4 × current` (prevents jarring jumps)
+**Smoothing:** Confidence-aware blend using up to the last 20 attempts.
 
 **Levels:** 0–30 → 🌱 Beginner | 31–70 → 🔥 Intermediate | 71–100 → ⭐ Advanced
 
@@ -300,6 +311,12 @@ When performance drops, the system automatically lowers interface complexity, re
 | Backend API | Render / Railway | [DEPLOYMENT.md](docs/DEPLOYMENT.md#step-2-backend-deployment-render) |
 | Frontend | Vercel / Netlify | [DEPLOYMENT.md](docs/DEPLOYMENT.md#step-3-frontend-deployment-vercel) |
 
+Operational launch runbooks:
+
+- [PRODUCTION_ROLLOUT_RUNBOOK.md](docs/PRODUCTION_ROLLOUT_RUNBOOK.md)
+- [ROLLBACK_PLAYBOOK.md](docs/ROLLBACK_PLAYBOOK.md)
+- [HYPERCARE_RUNBOOK.md](docs/HYPERCARE_RUNBOOK.md)
+
 ```bash
 # Frontend production build
 cd frontend && npm run build    # Output: dist/
@@ -318,9 +335,17 @@ cd backend && node server.js
 | [CHECKLIST.md](docs/CHECKLIST.md) | 200+ item feature checklist |
 | [ARCHITECTURE.md](docs/ARCHITECTURE.md) | System architecture, schema, algorithms |
 | [API_DOCUMENTATION.md](docs/API_DOCUMENTATION.md) | Core API endpoints with JSON examples |
+| [openapi/critical-endpoints.openapi.json](docs/openapi/critical-endpoints.openapi.json) | OpenAPI source for critical response contracts |
 | [DEPLOYMENT.md](docs/DEPLOYMENT.md) | Cloud deployment (Atlas, Render, Vercel) |
 | [ENV_CONFIGURATION.md](docs/ENV_CONFIGURATION.md) | Environment variable reference |
+| [BRANCH_PROTECTION.md](docs/BRANCH_PROTECTION.md) | Required status checks policy and application steps |
+| [TEST_STABILITY_GUIDELINES.md](docs/TEST_STABILITY_GUIDELINES.md) | Flaky-test controls and deterministic fixture standards |
+| [SECRET_ROTATION_RUNBOOK.md](docs/SECRET_ROTATION_RUNBOOK.md) | JWT/SMTP secret rotation ownership, cadence, and rollback procedure |
+| [OBSERVABILITY_RUNBOOK.md](docs/OBSERVABILITY_RUNBOOK.md) | Alert thresholds, routing ownership, and frontend error telemetry verification |
 | [BACKUP_RESTORE_RUNBOOK.md](docs/BACKUP_RESTORE_RUNBOOK.md) | Backup scheduling, restore procedures, and RTO drill template |
+| [PRODUCTION_ROLLOUT_RUNBOOK.md](docs/PRODUCTION_ROLLOUT_RUNBOOK.md) | Release-day monitored rollout steps and go/no-go checkpoints |
+| [ROLLBACK_PLAYBOOK.md](docs/ROLLBACK_PLAYBOOK.md) | Trigger-based rollback execution and post-rollback validation steps |
+| [HYPERCARE_RUNBOOK.md](docs/HYPERCARE_RUNBOOK.md) | 7-day post-launch monitoring cadence, severity policy, and exit criteria |
 
 ---
 

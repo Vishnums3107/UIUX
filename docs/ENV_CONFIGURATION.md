@@ -2,6 +2,8 @@
 
 > Complete reference for all environment variables across backend and frontend.
 
+> Launch Readiness Governance: [DEPLOYMENT_READY_IMPLEMENTATION_PLAN.md](DEPLOYMENT_READY_IMPLEMENTATION_PLAN.md) is the canonical execution and sign-off source.
+
 ---
 
 ## Backend Environment Variables
@@ -22,7 +24,9 @@
 |---|---|---|---|
 | `PORT` | `5000` | `5000` | HTTP server port |
 | `JWT_EXPIRE` | `7d` | `7d`, `24h`, `30d` | JWT token expiration duration |
+| `JWT_SECRET_PREVIOUS` | — | `old_secret_a,old_secret_b` | Optional comma-separated previous JWT secrets accepted during token-verification grace window. |
 | `FRONTEND_URL` | `*` | `http://localhost:5173` | Allowed CORS origin. Use `*` for dev, specific domain for production. |
+| `TRUST_PROXY` | — | `1` | Trust proxy hop count or boolean; required when deployed behind reverse proxies/load balancers. |
 | `PASSWORD_RESET_URL` | `<FRONTEND_URL>/resetpassword` | `https://app.example.com/resetpassword` | Base URL used to build password reset links sent by email. |
 | `SMTP_HOST` | — | `smtp.sendgrid.net` | SMTP server host for password reset emails. |
 | `SMTP_PORT` | — | `587` | SMTP server port. |
@@ -44,7 +48,15 @@
 | `ALERT_5XX_WINDOW_SECONDS` | `300` | `300` | Sliding window for 5xx alerting. |
 | `ALERT_AUTH_FAILURE_THRESHOLD` | `25` | `25` | Auth failure count threshold before alert trigger. |
 | `ALERT_AUTH_FAILURE_WINDOW_SECONDS` | `600` | `600` | Sliding window for auth failure alerting. |
+| `ALERT_FRONTEND_ERROR_THRESHOLD` | `10` | `10` | Frontend runtime error count threshold before alert trigger. |
+| `ALERT_FRONTEND_ERROR_WINDOW_SECONDS` | `300` | `300` | Sliding window for frontend runtime error alerting. |
+| `ALERT_FRONTEND_ERROR_SEVERITIES` | `high,critical` | `medium,high,critical` | Comma-separated severities counted toward frontend error threshold. |
 | `ALERT_COOLDOWN_SECONDS` | `300` | `300` | Minimum seconds between repeated alerts of same type. |
+| `ALERT_ROUTING_PRIMARY` | `-` | `oncall-backend` | Primary alert owner identifier included in alert payload metadata. |
+| `ALERT_ROUTING_SECONDARY` | `-` | `oncall-frontend` | Secondary/backup alert owner identifier included in alert payload metadata. |
+| `ALERT_ROUTING_ESCALATION` | `-` | `eng-manager` | Escalation owner/policy reference included in alert payload metadata. |
+| `FRONTEND_TELEMETRY_RATE_LIMIT_WINDOW_MINUTES` | `5` | `5` | Time window for frontend telemetry ingestion rate limiting. |
+| `FRONTEND_TELEMETRY_RATE_LIMIT_MAX` | `60` | `60` | Maximum frontend telemetry events per IP in telemetry window. |
 | `ALERT_WEBHOOK_URL` | `-` | `https://hooks.example.com/alerts` | Optional webhook endpoint for forwarding alert payloads. |
 | `READINESS_EMAIL_VERIFY` | `true` in production, `false` otherwise | `true` | Enables SMTP transport verification in `/api/readiness`. |
 | `READINESS_EMAIL_VERIFY_TIMEOUT_MS` | `2500` | `2500` | Timeout in milliseconds for readiness SMTP verification probe. |
@@ -69,6 +81,21 @@ openssl rand -hex 64
 ```
 
 > ⚠️ **Never commit your actual `.env` file to version control.** The `.gitignore` already excludes it.
+
+### JWT Secret Rotation Procedure
+
+Use this rollout sequence to rotate JWT keys without forcing immediate logout:
+
+1. Generate a new `JWT_SECRET` value.
+2. Move the previous active secret into `JWT_SECRET_PREVIOUS`.
+3. Deploy backend with both values set.
+4. Wait at least one full token TTL (`JWT_EXPIRE`) so old tokens age out naturally.
+5. Remove aged secrets from `JWT_SECRET_PREVIOUS` and redeploy.
+
+Notes:
+
+- `JWT_SECRET` is always used for signing new tokens.
+- `JWT_SECRET_PREVIOUS` is verification-only and can contain multiple comma-separated fallback secrets.
 
 ---
 
@@ -117,7 +144,18 @@ AUTH_LOCKOUT_ENABLED=true
 AUTH_LOCKOUT_MAX_ATTEMPTS=5
 AUTH_LOCKOUT_MINUTES=15
 ALERT_5XX_THRESHOLD=30
+ALERT_5XX_WINDOW_SECONDS=300
 ALERT_AUTH_FAILURE_THRESHOLD=40
+ALERT_AUTH_FAILURE_WINDOW_SECONDS=600
+ALERT_FRONTEND_ERROR_THRESHOLD=20
+ALERT_FRONTEND_ERROR_WINDOW_SECONDS=300
+ALERT_FRONTEND_ERROR_SEVERITIES=high,critical
+ALERT_COOLDOWN_SECONDS=300
+ALERT_ROUTING_PRIMARY=oncall-backend
+ALERT_ROUTING_SECONDARY=oncall-frontend
+ALERT_ROUTING_ESCALATION=eng-manager
+FRONTEND_TELEMETRY_RATE_LIMIT_WINDOW_MINUTES=5
+FRONTEND_TELEMETRY_RATE_LIMIT_MAX=60
 ```
 
 ```env
@@ -125,8 +163,10 @@ ALERT_AUTH_FAILURE_THRESHOLD=40
 PORT=5000
 MONGODB_URI=mongodb+srv://appuser:s3cur3P@ss@cluster0.abc123.mongodb.net/tamil-learning?retryWrites=true&w=majority
 JWT_SECRET=a3f2b8c9d1e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0
+JWT_SECRET_PREVIOUS=prev_rotation_secret_a,prev_rotation_secret_b
 JWT_EXPIRE=7d
 FRONTEND_URL=https://tamil-learning.vercel.app
+TRUST_PROXY=1
 PASSWORD_RESET_URL=https://tamil-learning.vercel.app/resetpassword
 SMTP_HOST=smtp.sendgrid.net
 SMTP_PORT=587
@@ -148,7 +188,15 @@ ALERT_5XX_THRESHOLD=20
 ALERT_5XX_WINDOW_SECONDS=300
 ALERT_AUTH_FAILURE_THRESHOLD=25
 ALERT_AUTH_FAILURE_WINDOW_SECONDS=600
+ALERT_FRONTEND_ERROR_THRESHOLD=10
+ALERT_FRONTEND_ERROR_WINDOW_SECONDS=300
+ALERT_FRONTEND_ERROR_SEVERITIES=high,critical
 ALERT_COOLDOWN_SECONDS=300
+ALERT_ROUTING_PRIMARY=oncall-backend
+ALERT_ROUTING_SECONDARY=oncall-frontend
+ALERT_ROUTING_ESCALATION=eng-manager
+FRONTEND_TELEMETRY_RATE_LIMIT_WINDOW_MINUTES=5
+FRONTEND_TELEMETRY_RATE_LIMIT_MAX=60
 ALERT_WEBHOOK_URL=https://hooks.example.com/alerts
 READINESS_EMAIL_VERIFY=true
 READINESS_EMAIL_VERIFY_TIMEOUT_MS=2500
@@ -165,6 +213,7 @@ READINESS_EMAIL_VERIFY_TIMEOUT_MS=2500
 | Variable | Default | Example | Description |
 |---|---|---|---|
 | `VITE_API_URL` | `/api` | `https://api.example.com/api` | Backend API base URL |
+| `VITE_APP_RELEASE` | — | `2026.04.20-rc1` | Optional frontend release identifier attached to runtime error telemetry payloads. |
 
 ---
 
@@ -251,7 +300,8 @@ npm run dev
 | **Unique secrets per environment** | Dev, staging, and production should each have a different `JWT_SECRET` |
 | **Strong JWT secrets** | Use at least 64 random bytes (128 hex characters) |
 | **Restrict CORS in production** | Set `FRONTEND_URL` to your exact domain, never `*` in production |
-| **Rotate secrets periodically** | Change `JWT_SECRET` every 90 days (existing tokens will be invalidated) |
+| **Rotate secrets periodically** | Rotate every 90 days using `JWT_SECRET` + `JWT_SECRET_PREVIOUS` overlap window to avoid forced logout |
+| **Set trust proxy correctly** | Configure `TRUST_PROXY` behind Render/Railway/NGINX so IP-aware security and logs remain accurate |
 | **Never commit `.env` files** | Always use `.env.example` as a template; `.gitignore` handles the rest |
 | **URL-encode passwords** | Special characters in MongoDB passwords must be URL-encoded |
 | **Restrict Atlas IP access** | In production, whitelist only your server IPs instead of `0.0.0.0/0` |

@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const request = require('supertest');
 const mongoose = require('mongoose');
+const jwt = require('jsonwebtoken');
 const { MongoMemoryServer } = require('mongodb-memory-server');
 
 const createApp = require('../app');
@@ -48,6 +49,7 @@ test.beforeEach(async () => {
     delete process.env.AUTH_LOCKOUT_ENABLED;
     delete process.env.AUTH_LOCKOUT_MAX_ATTEMPTS;
     delete process.env.AUTH_LOCKOUT_MINUTES;
+    delete process.env.JWT_SECRET_PREVIOUS;
     process.env.NODE_ENV = ORIGINAL_NODE_ENV;
 
     // Ensure auth route-specific rate limits do not leak state between tests.
@@ -191,4 +193,41 @@ test('login lockout is enforced after repeated failed attempts and clears after 
         .send({ email: TEST_USER.email, password: TEST_USER.password });
     assert.equal(successfulLogin.status, 200);
     assert.ok(successfulLogin.body.token);
+});
+
+test('login returns 401 instead of 500 for malformed password records', async () => {
+    await registerUser();
+
+    await User.updateOne(
+        { email: TEST_USER.email },
+        { $set: { password: null } }
+    );
+
+    const response = await request(app)
+        .post('/api/auth/login')
+        .send({ email: TEST_USER.email, password: TEST_USER.password });
+
+    assert.equal(response.status, 401);
+    assert.equal(response.body.error, 'Invalid email or password.');
+});
+
+test('auth middleware accepts token signed with previous JWT secret during rotation window', async () => {
+    process.env.JWT_SECRET = 'new-rotation-secret';
+    process.env.JWT_SECRET_PREVIOUS = 'legacy-rotation-secret';
+
+    await registerUser();
+    const storedUser = await User.findOne({ email: TEST_USER.email });
+
+    const legacyToken = jwt.sign(
+        { id: storedUser._id },
+        process.env.JWT_SECRET_PREVIOUS,
+        { expiresIn: '1d' }
+    );
+
+    const profileResponse = await request(app)
+        .get('/api/auth/profile')
+        .set('Authorization', `Bearer ${legacyToken}`);
+
+    assert.equal(profileResponse.status, 200);
+    assert.equal(profileResponse.body.email, TEST_USER.email);
 });

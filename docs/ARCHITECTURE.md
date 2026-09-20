@@ -2,6 +2,8 @@
 
 > Complete architecture documentation covering components, data flows, database schema, and engine algorithms.
 
+> Launch Readiness Governance: [DEPLOYMENT_READY_IMPLEMENTATION_PLAN.md](DEPLOYMENT_READY_IMPLEMENTATION_PLAN.md) is the canonical execution and sign-off source.
+
 ---
 
 ## High-Level Architecture
@@ -211,28 +213,49 @@ Index: { user_id: 1, createdAt: -1 }
 ┌─────────────────────────────┐
 │ Calculate Sub-Scores        │
 │                             │
-│  success_rate = correct/N   │
-│  × 100                     │
+│  recency weights:           │
+│  w(i) = 0.9^i (normalized)  │
+│                             │
+│  success_rate = weighted    │
+│  correct ratio × 100        │
 │                             │
 │  time_eff = max(0, min(100, │
-│    (1 - (avg/30 - 1)/2)    │
+│    (1 - (avg_active/30 - 1) │
+│      / 2)                  │
 │    × 100))                 │
 │                             │
 │  error_rate = min(100,      │
-│    (avgErrors/5) × 100)    │
+│    weighted(avgErrors/5)    │
+│    × 100)                  │
 │                             │
 │  hint_dep = min(100,        │
-│    (avgHints/3) × 100)     │
+│    weighted(avgHints/3)     │
+│    × 100)                  │
+│                             │
+│  retry_dep = min(100,       │
+│    weighted(avgRetries/4)   │
+│    × 100)                  │
+│                             │
+│  idle_penalty = weighted    │
+│    (idle_time/time_spent)   │
+│    × 100                   │
 └────────────┬────────────────┘
              │
              ▼
 ┌─────────────────────────────┐
 │ Weighted Combination        │
 │                             │
-│  raw = 0.4 × success_rate   │
-│      + 0.2 × time_eff      │
-│      - 0.2 × error_rate    │
-│      - 0.2 × hint_dep      │
+│  error_ctrl = 100-error_rate│
+│  hint_ind = 100-hint_dep    │
+│  retry_ctrl = 100-retry_dep │
+│  focus = 100-idle_penalty   │
+│                             │
+│  raw = 0.45 × success_rate  │
+│      + 0.20 × time_eff      │
+│      + 0.15 × error_ctrl    │
+│      + 0.10 × hint_ind      │
+│      + 0.06 × retry_ctrl    │
+│      + 0.04 × focus         │
 │                             │
 │  clamped = clamp(raw, 0,100)│
 └────────────┬────────────────┘
@@ -241,8 +264,11 @@ Index: { user_id: 1, createdAt: -1 }
 ┌─────────────────────────────┐
 │ Smoothing                   │
 │                             │
-│  final = 0.6 × clamped     │
-│        + 0.4 × current     │
+│  confidence = min(1, N/20)  │
+│  w = 0.35 + 0.30×confidence │
+│                             │
+│  final = w × clamped        │
+│        + (1-w) × current    │
 │                             │
 │  rounded = round(final)     │
 │  clamped to [0, 100]        │
@@ -267,9 +293,9 @@ Index: { user_id: 1, createdAt: -1 }
 
 ### Smoothing Rationale
 
-The 60/40 blend (`final = 0.6 × new + 0.4 × current`) serves two purposes:
-1. **Prevents jarring jumps** — A single bad/good attempt won't dramatically shift the level
-2. **Enables reversible adaptation** — Sustained poor performance will gradually lower the score, while recovery is equally gradual
+The confidence-aware blend (`w = 0.35 + 0.30 × confidence`) serves two purposes:
+1. **Prevents jarring jumps on low data** - Early attempts are down-weighted until enough evidence exists
+2. **Adapts faster on stable history** - With a full rolling window, recent performance meaningfully shifts the score while remaining smooth
 
 ---
 

@@ -2,6 +2,8 @@
 
 Last updated: March 11, 2026
 
+> Launch Readiness Governance: [DEPLOYMENT_READY_IMPLEMENTATION_PLAN.md](DEPLOYMENT_READY_IMPLEMENTATION_PLAN.md) is the canonical execution and sign-off source.
+
 ## 1. Purpose
 
 This document lists:

@@ -1,7 +1,13 @@
 const express = require('express');
 const router = express.Router();
 const { body, query } = require('express-validator');
-const { submitAttempt, getHistory, getStats, getReviewQueue } = require('../controllers/attemptController');
+const {
+    submitAttempt,
+    submitMastery,
+    getHistory,
+    getStats,
+    getReviewQueue
+} = require('../controllers/attemptController');
 const { auth } = require('../middleware/auth');
 const { handleValidationErrors } = require('../middleware/validation');
 
@@ -58,6 +64,18 @@ const historyQueryValidation = [
     handleValidationErrors
 ];
 
+const submitMasteryValidation = [
+    body('stageNumber').isInt({ min: 1, max: 10 }).withMessage('stageNumber must be between 1 and 10').toInt(),
+    body('scorePercent').isFloat({ min: 0, max: 100 }).withMessage('scorePercent must be between 0 and 100').toFloat(),
+    body('correctCount').isInt({ min: 0, max: 1000 }).withMessage('correctCount must be between 0 and 1000').toInt(),
+    body('totalQuestions').isInt({ min: 1, max: 1000 }).withMessage('totalQuestions must be between 1 and 1000').toInt(),
+    body('timeSpent').optional().isFloat({ min: 0, max: 36000 }).withMessage('timeSpent must be between 0 and 36000').toFloat(),
+    body('errors').optional().isInt({ min: 0, max: 1000 }).withMessage('errors must be between 0 and 1000').toInt(),
+    body('hintsUsed').optional().isInt({ min: 0, max: 1000 }).withMessage('hintsUsed must be between 0 and 1000').toInt(),
+    body('questions').optional().isArray({ max: 200 }).withMessage('questions must be an array'),
+    handleValidationErrors
+];
+
 const reviewQueueQueryValidation = [
     query('limit')
         .optional()
@@ -68,6 +86,7 @@ const reviewQueueQueryValidation = [
 ];
 
 router.post('/', auth, submitAttemptValidation, submitAttempt);
+router.post('/mastery', auth, submitMasteryValidation, submitMastery);
 router.get('/history', auth, historyQueryValidation, getHistory);
 router.get('/stats', auth, getStats);
 router.get('/review-queue', auth, reviewQueueQueryValidation, getReviewQueue);

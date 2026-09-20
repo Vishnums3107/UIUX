@@ -1,5 +1,8 @@
 import { test, expect } from '@playwright/test';
 
+const escapeRegExp = (value = '') => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const normalize = (value = '') => String(value).trim().toLowerCase();
+
 const login = async (page, email, password) => {
     await page.goto('/login');
     await page.locator('input[type="email"]').fill(email);
@@ -27,13 +30,43 @@ test('learn smoke: learner can complete one lesson', async ({ page }) => {
 
     await page.goto('/learn');
     await expect(page.getByText('Choose a Category')).toBeVisible();
+
+    const lessonsResponsePromise = page.waitForResponse((response) =>
+        response.url().includes('/api/lessons') &&
+        response.request().method() === 'GET' &&
+        response.status() === 200
+    );
+
     await page.getByTestId('category-uyir').click();
+    const lessons = await (await lessonsResponsePromise).json();
+    const lesson = Array.isArray(lessons) ? lessons[0] : null;
 
-    await expect(page.getByTestId('option-0')).toBeVisible();
-    await page.getByTestId('option-0').click();
-    await page.getByTestId('lesson-submit').click();
+    expect(lesson).toBeTruthy();
+    const options = Array.isArray(lesson?.options) ? lesson.options : [];
+    const correctAnswer = String(lesson?.correct_answer ?? '').trim();
+    expect(correctAnswer.length).toBeGreaterThan(0);
 
-    await expect(page.getByText('Session Complete!')).toBeVisible();
+    await expect(page.getByRole('button', { name: /submit/i }).first()).toBeVisible();
+
+    if (options.length > 0) {
+        const optionIndex = options.findIndex((option) => normalize(option) === normalize(correctAnswer));
+        expect(optionIndex).toBeGreaterThanOrEqual(0);
+
+        const legacyOption = page.getByTestId(`option-${optionIndex}`);
+        if (await legacyOption.count()) {
+            await legacyOption.click();
+        } else {
+            await page.getByRole('button', {
+                name: new RegExp(`^\\s*${escapeRegExp(options[optionIndex])}\\s*$`, 'i')
+            }).click();
+        }
+    } else {
+        await page.locator('input[type="text"]').first().fill(correctAnswer);
+    }
+
+    await page.getByRole('button', { name: /submit/i }).first().click();
+
+    await expect(page.getByRole('heading', { name: /complete!/i })).toBeVisible();
 });
 
 test('admin smoke: admin can access analytics and user progress modal', async ({ page }) => {

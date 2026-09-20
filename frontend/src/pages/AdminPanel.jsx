@@ -85,7 +85,7 @@ export default function AdminPanel() {
         labels: levelDist.map(d => d._id),
         datasets: [{
             data: levelDist.map(d => d.count),
-            backgroundColor: ['rgba(16,185,129,0.7)', 'rgba(245,158,11,0.7)', 'rgba(244,63,94,0.7)'],
+            backgroundColor: ['rgba(56,189,248,0.72)', 'rgba(37,99,235,0.72)', 'rgba(30,64,175,0.72)'],
             borderWidth: 0,
         }]
     };
@@ -96,7 +96,7 @@ export default function AdminPanel() {
         datasets: [{
             label: 'Attempts',
             data: analytics?.recentActivity?.map(d => d.attempts) || [],
-            backgroundColor: 'rgba(217,70,239,0.6)',
+            backgroundColor: 'rgba(14,165,233,0.62)',
             borderRadius: 6,
         }]
     };
