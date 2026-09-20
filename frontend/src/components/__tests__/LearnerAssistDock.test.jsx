@@ -71,15 +71,7 @@ describe('LearnerAssistDock', () => {
         expect(onOpenCommandCenter).toHaveBeenCalledTimes(1);
     });
 
-    test('sends message to Gemini API and displays response', async () => {
-        global.fetch = vi.fn(() =>
-            Promise.resolve({
-                json: () => Promise.resolve({
-                    candidates: [{ content: { parts: [{ text: 'Here is your help from Gemini!' }] } }]
-                })
-            })
-        );
-
+    test('uses the local learning helper when no Gemini key is configured', async () => {
         render(
             <MemoryRouter initialEntries={['/learn']}>
                 <LearnerAssistDock onOpenCommandCenter={vi.fn()} />
@@ -90,7 +82,7 @@ describe('LearnerAssistDock', () => {
         fireEvent.change(screen.getByPlaceholderText(/Ask for study help/i), { target: { value: 'how to start' } });
         fireEvent.click(screen.getByRole('button', { name: /^Send$/i }));
 
-        expect(await screen.findByText('Here is your help from Gemini!')).toBeInTheDocument();
+        expect(await screen.findByText(/Use the Help tab for practical learning tips/i)).toBeInTheDocument();
     });
 
     test('global keyboard shortcut toggles dock and escape closes it', () => {

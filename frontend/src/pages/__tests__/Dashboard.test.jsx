@@ -65,6 +65,7 @@ vi.mock('chart.js', () => ({
     Chart: { register: vi.fn() },
     CategoryScale: {},
     LinearScale: {},
+    RadialLinearScale: {},
     PointElement: {},
     LineElement: {},
     BarElement: {},
@@ -79,6 +80,8 @@ vi.mock('react-chartjs-2', () => ({
     Line: () => <div data-testid="line-chart-mock" />,
     Bar: () => <div data-testid="bar-chart-mock" />,
     Doughnut: () => <div data-testid="doughnut-chart-mock" />
+    ,
+    Radar: () => <div data-testid="radar-chart-mock" />
 }));
 
 const dueLesson = {
