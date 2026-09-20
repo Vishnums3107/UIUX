@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
+import { assistantAPI } from '../services/api';
 
 const HELP_TOPICS = [
     {
@@ -28,7 +29,6 @@ const SHORTCUTS = [
 ];
 
 const normalize = (value = '') => String(value).trim().toLowerCase();
-const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
 
 const buildAssistantReply = ({ query = '', user = {}, pathname = '' } = {}) => {
     const text = normalize(query);
@@ -164,43 +164,8 @@ export default function LearnerAssistDock({ onOpenCommandCenter }) {
         setIsLoading(true);
 
         try {
-            const history = messages.map(m => ({
-                role: m.role === 'assistant' ? 'model' : 'user',
-                parts: [{ text: m.text }]
-            }));
-            history.push({ role: 'user', parts: [{ text: clean }] });
-
-            const systemInstruction = `You are a helpful learner assistant for a Tamil language learning platform. 
-The user's name is ${user?.name || 'Learner'}. They are currently on the page path: ${location.pathname}.
-Keep your answers brief, encouraging, and focused on helping them learn Tamil or navigate the platform.
-Do not use markdown formatting like bold/italics in your response. Keep it to plain text paragraphs.`;
-
-            if (!GEMINI_API_KEY) {
-                setMessages((prev) => [...prev, {
-                    id: `assistant-${Date.now() + 1}`,
-                    role: 'assistant',
-                    ...buildAssistantReply({ query: clean, user, pathname: location.pathname })
-                }]);
-                return;
-            }
-
-            const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${encodeURIComponent(GEMINI_API_KEY)}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    systemInstruction: {
-                        parts: [{ text: systemInstruction }]
-                    },
-                    contents: history,
-                })
-            });
-
-            const data = await res.json();
-            
-            let replyText = "I'm having trouble connecting right now. Try again later!";
-            if (data.candidates && data.candidates[0].content && data.candidates[0].content.parts[0].text) {
-                replyText = data.candidates[0].content.parts[0].text;
-            }
+            const { data } = await assistantAPI.reply({ query: clean, pathname: location.pathname });
+            const replyText = data?.reply || buildAssistantReply({ query: clean, user, pathname: location.pathname }).text;
 
             const assistantMessage = {
                 id: `assistant-${Date.now() + 1}`,
@@ -211,12 +176,10 @@ Do not use markdown formatting like bold/italics in your response. Keep it to pl
 
             setMessages((prev) => [...prev, assistantMessage]);
         } catch (error) {
-            console.error("Gemini API Error:", error);
             setMessages((prev) => [...prev, {
                 id: `assistant-${Date.now() + 1}`,
                 role: 'assistant',
-                text: "Sorry, I ran into a network issue connecting to the brain. Please try again.",
-                action: null
+                ...buildAssistantReply({ query: clean, user, pathname: location.pathname })
             }]);
         } finally {
             setIsLoading(false);

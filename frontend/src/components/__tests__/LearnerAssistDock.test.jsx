@@ -3,6 +3,7 @@ import { MemoryRouter } from 'react-router-dom';
 import LearnerAssistDock from '../LearnerAssistDock';
 
 const toggleThemeMock = vi.fn();
+const assistantReplyMock = vi.fn();
 
 let authState = {
     user: {
@@ -25,9 +26,14 @@ vi.mock('../../context/ThemeContext', () => ({
     useTheme: () => themeState
 }));
 
+vi.mock('../../services/api', () => ({
+    assistantAPI: { reply: (...args) => assistantReplyMock(...args) }
+}));
+
 describe('LearnerAssistDock', () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        assistantReplyMock.mockRejectedValue(new Error('Assistant unavailable'));
         authState = {
             user: {
                 name: 'Priya',

@@ -10,6 +10,7 @@ const adminRoutes = require('./routes/admin');
 const leaderboardRoutes = require('./routes/leaderboard');
 const telemetryRoutes = require('./routes/telemetry');
 const ttsRoutes = require('./routes/tts');
+const assistantRoutes = require('./routes/assistant');
 const logger = require('./utils/logger');
 const { requestLogging } = require('./middleware/requestLogging');
 const { getReadinessReport: defaultGetReadinessReport } = require('./utils/readiness');
@@ -117,6 +118,7 @@ function createApp({ getReadinessReport = defaultGetReadinessReport } = {}) {
     app.use('/api/leaderboard', leaderboardRoutes);
     app.use('/api/telemetry', telemetryRoutes);
     app.use('/api/tts', ttsRoutes);
+    app.use('/api/assistant', assistantRoutes);
 
     app.get('/api/health', (req, res) => {
         res.json({

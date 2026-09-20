@@ -76,4 +76,9 @@ export const leaderboardAPI = {
     getTopUsers: () => api.get('/leaderboard'),
 };
 
+// --- Learner assistant ---
+export const assistantAPI = {
+    reply: (data) => api.post('/assistant/reply', data)
+};
+
 export default api;
