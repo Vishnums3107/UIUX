@@ -1,0 +1,29 @@
+{
+  "runDate": "2026-04-21T04:40:31.631Z",
+  "targetUrl": "http://127.0.0.1:57290/api/health",
+  "config": {
+    "durationSeconds": 30,
+    "concurrency": 6,
+    "maxRequests": 150
+  },
+  "thresholds": {
+    "minSuccessRatePct": 99,
+    "minThroughputRps": 8,
+    "maxP95LatencyMs": 200
+  },
+  "results": {
+    "totalRequests": 150,
+    "successfulRequests": 150,
+    "failedRequests": 0,
+    "successRatePct": 100,
+    "throughputRps": 150,
+    "p95LatencyMs": 51,
+    "durationActualSeconds": 1
+  },
+  "evaluation": {
+    "successRatePass": true,
+    "throughputPass": true,
+    "p95Pass": true,
+    "overallPass": true
+  }
+}

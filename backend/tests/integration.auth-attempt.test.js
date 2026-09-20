@@ -58,6 +58,8 @@ test('auth flow: register, login, and get profile with JWT', async () => {
     assert.equal(registerRes.status, 201);
     assert.ok(registerRes.body.token);
     assert.equal(registerRes.body.user.email, TEST_USER.email);
+    assert.equal(registerRes.body.user.adaptivePreferences.modePreference, 'auto');
+    assert.equal(registerRes.body.user.adaptiveProfile.recommendedMode, 'balanced');
 
     const loginRes = await request(app).post('/api/auth/login').send({
         email: TEST_USER.email,
@@ -71,6 +73,7 @@ test('auth flow: register, login, and get profile with JWT', async () => {
         .set('Authorization', `Bearer ${loginRes.body.token}`);
     assert.equal(profileRes.status, 200);
     assert.equal(profileRes.body.email, TEST_USER.email);
+    assert.equal(profileRes.body.adaptivePreferences.modePreference, 'auto');
 });
 
 test('forgot-password flow keeps generic response and provides dev reset token for known user', async () => {
@@ -95,6 +98,300 @@ test('forgot-password flow keeps generic response and provides dev reset token f
         'If an account with that email exists, a reset link has been sent.'
     );
     assert.ok(knownRes.body.resetToken);
+});
+
+test('profile update persists adaptive preferences', async () => {
+    const token = await registerAndGetToken();
+
+    const updateRes = await request(app)
+        .put('/api/auth/profile')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+            adaptivePreferences: {
+                modePreference: 'challenge',
+                immersiveModeDefault: true
+            }
+        });
+
+    assert.equal(updateRes.status, 200);
+    assert.equal(updateRes.body.adaptivePreferences.modePreference, 'challenge');
+    assert.equal(updateRes.body.adaptivePreferences.immersiveModeDefault, true);
+
+    const storedUser = await User.findOne({ email: TEST_USER.email });
+    assert.equal(storedUser.adaptivePreferences.modePreference, 'challenge');
+    assert.equal(storedUser.adaptivePreferences.immersiveModeDefault, true);
+});
+
+test('adaptive profile insights include category-level recommendations', async () => {
+    const token = await registerAndGetToken();
+    const user = await User.findOne({ email: TEST_USER.email });
+
+    const [uyirLesson, grammarLesson] = await Lesson.create([
+        {
+            category: 'uyir',
+            difficulty: 'Beginner',
+            type: 'mcq',
+            question: 'Uyir signal lesson',
+            question_tamil: 'Uyir signal lesson tamil',
+            options: ['அ', 'ஆ', 'இ'],
+            correct_answer: 'அ',
+            hint: 'Hint',
+            explanation: 'Explanation'
+        },
+        {
+            category: 'grammar',
+            difficulty: 'Intermediate',
+            type: 'text',
+            question: 'Grammar signal lesson',
+            question_tamil: 'Grammar signal lesson tamil',
+            correct_answer: 'answer',
+            hint: 'Hint',
+            explanation: 'Explanation'
+        }
+    ]);
+
+    await LessonAttempt.insertMany([
+        {
+            user_id: user._id,
+            lesson_id: uyirLesson._id,
+            time_spent: 22,
+            errors: 3,
+            hints_used: 2,
+            retries: 2,
+            idle_time: 0,
+            score: 0,
+            answer_given: 'ஆ'
+        },
+        {
+            user_id: user._id,
+            lesson_id: uyirLesson._id,
+            time_spent: 19,
+            errors: 2,
+            hints_used: 1,
+            retries: 1,
+            idle_time: 0,
+            score: 0,
+            answer_given: 'இ'
+        },
+        {
+            user_id: user._id,
+            lesson_id: grammarLesson._id,
+            time_spent: 11,
+            errors: 0,
+            hints_used: 0,
+            retries: 0,
+            idle_time: 0,
+            score: 1,
+            answer_given: 'answer'
+        },
+        {
+            user_id: user._id,
+            lesson_id: grammarLesson._id,
+            time_spent: 10,
+            errors: 0,
+            hints_used: 0,
+            retries: 0,
+            idle_time: 0,
+            score: 1,
+            answer_given: 'answer'
+        }
+    ]);
+
+    const insightsRes = await request(app)
+        .get('/api/auth/adaptive-profile')
+        .set('Authorization', `Bearer ${token}`);
+
+    assert.equal(insightsRes.status, 200);
+    assert.ok(insightsRes.body.adaptivePreferences);
+    assert.ok(insightsRes.body.adaptiveProfile);
+    assert.ok(Array.isArray(insightsRes.body.categoryRecommendations));
+    assert.ok(insightsRes.body.categoryRecommendations.length >= 2);
+
+    const uyir = insightsRes.body.categoryRecommendations.find((item) => item.category === 'uyir');
+    const grammar = insightsRes.body.categoryRecommendations.find((item) => item.category === 'grammar');
+
+    assert.ok(uyir);
+    assert.equal(uyir.recommendedMode, 'support');
+    assert.ok(uyir.supportNeed >= 58);
+
+    assert.ok(grammar);
+    assert.notEqual(grammar.recommendedMode, 'support');
+    assert.ok(typeof insightsRes.body.attemptWindowSize === 'number');
+});
+
+test('topic intelligence endpoint returns mastery map and sequencing guidance', async () => {
+    const token = await registerAndGetToken();
+    const user = await User.findOne({ email: TEST_USER.email });
+
+    const [uyirLesson, grammarLesson] = await Lesson.create([
+        {
+            category: 'uyir',
+            difficulty: 'Beginner',
+            type: 'mcq',
+            question: 'Topic intelligence uyir lesson',
+            question_tamil: 'Topic intelligence uyir lesson tamil',
+            options: ['அ', 'ஆ', 'இ'],
+            correct_answer: 'அ',
+            hint: 'Hint',
+            explanation: 'Explanation',
+            stage: 2,
+            stageOrder: 1
+        },
+        {
+            category: 'grammar',
+            difficulty: 'Intermediate',
+            type: 'text',
+            question: 'Topic intelligence grammar lesson',
+            question_tamil: 'Topic intelligence grammar lesson tamil',
+            correct_answer: 'answer',
+            hint: 'Hint',
+            explanation: 'Explanation',
+            stage: 2,
+            stageOrder: 2
+        }
+    ]);
+
+    await LessonAttempt.insertMany([
+        {
+            user_id: user._id,
+            lesson_id: uyirLesson._id,
+            time_spent: 24,
+            errors: 2,
+            hints_used: 1,
+            retries: 1,
+            idle_time: 0,
+            score: 0,
+            answer_given: 'ஆ'
+        },
+        {
+            user_id: user._id,
+            lesson_id: uyirLesson._id,
+            time_spent: 25,
+            errors: 3,
+            hints_used: 2,
+            retries: 2,
+            idle_time: 0,
+            score: 0,
+            answer_given: 'இ'
+        },
+        {
+            user_id: user._id,
+            lesson_id: grammarLesson._id,
+            time_spent: 11,
+            errors: 0,
+            hints_used: 0,
+            retries: 0,
+            idle_time: 0,
+            score: 1,
+            answer_given: 'answer'
+        }
+    ]);
+
+    const intelligenceRes = await request(app)
+        .get('/api/auth/topic-intelligence')
+        .set('Authorization', `Bearer ${token}`);
+
+    assert.equal(intelligenceRes.status, 200);
+    assert.ok(Number.isInteger(intelligenceRes.body.activeStage));
+    assert.ok(Array.isArray(intelligenceRes.body.pendingMasteryStages));
+    assert.ok(Array.isArray(intelligenceRes.body.categoryMasteryMap));
+    assert.ok(Array.isArray(intelligenceRes.body.stageCategoryRecommendations));
+    assert.ok(Array.isArray(intelligenceRes.body.sequencingPlan));
+
+    const uyir = intelligenceRes.body.categoryMasteryMap.find((item) => item.category === 'uyir');
+    assert.ok(uyir);
+    assert.equal(uyir.recommendedMode, 'support');
+
+    const firstSequence = intelligenceRes.body.sequencingPlan[0];
+    assert.ok(firstSequence);
+    assert.equal(firstSequence.rank, 1);
+    assert.ok(typeof firstSequence.priorityScore === 'number');
+});
+
+test('learning director endpoint returns directional plan and forecasting', async () => {
+    const token = await registerAndGetToken();
+    const user = await User.findOne({ email: TEST_USER.email });
+
+    const [uyirLesson, grammarLesson] = await Lesson.create([
+        {
+            category: 'uyir',
+            difficulty: 'Beginner',
+            type: 'mcq',
+            question: 'Learning director uyir lesson',
+            question_tamil: 'Learning director uyir lesson tamil',
+            options: ['à®…', 'à®†', 'à®‡'],
+            correct_answer: 'à®…',
+            hint: 'Hint',
+            explanation: 'Explanation',
+            stage: 2,
+            stageOrder: 1
+        },
+        {
+            category: 'grammar',
+            difficulty: 'Intermediate',
+            type: 'text',
+            question: 'Learning director grammar lesson',
+            question_tamil: 'Learning director grammar lesson tamil',
+            correct_answer: 'answer',
+            hint: 'Hint',
+            explanation: 'Explanation',
+            stage: 2,
+            stageOrder: 2
+        }
+    ]);
+
+    await LessonAttempt.insertMany([
+        {
+            user_id: user._id,
+            lesson_id: uyirLesson._id,
+            time_spent: 26,
+            errors: 3,
+            hints_used: 2,
+            retries: 2,
+            idle_time: 0,
+            score: 0,
+            answer_given: 'à®†'
+        },
+        {
+            user_id: user._id,
+            lesson_id: uyirLesson._id,
+            time_spent: 24,
+            errors: 2,
+            hints_used: 1,
+            retries: 1,
+            idle_time: 0,
+            score: 0,
+            answer_given: 'à®‡'
+        },
+        {
+            user_id: user._id,
+            lesson_id: grammarLesson._id,
+            time_spent: 12,
+            errors: 0,
+            hints_used: 0,
+            retries: 0,
+            idle_time: 0,
+            score: 1,
+            answer_given: 'answer'
+        }
+    ]);
+
+    const directorRes = await request(app)
+        .get('/api/auth/learning-director')
+        .set('Authorization', `Bearer ${token}`);
+
+    assert.equal(directorRes.status, 200);
+    assert.ok(Array.isArray(directorRes.body.stageConfidenceBands));
+    assert.ok(Array.isArray(directorRes.body.nextBestSessions));
+    assert.ok(directorRes.body.recoveryPlan);
+    assert.ok(directorRes.body.workloadPlan);
+    assert.ok(directorRes.body.masteryForecast);
+    assert.ok(directorRes.body.learningArc);
+    assert.ok(typeof directorRes.body.attemptWindowSize === 'number');
+
+    const topSession = directorRes.body.nextBestSessions[0];
+    assert.ok(topSession);
+    assert.ok(topSession.actionPath.startsWith('/learn'));
 });
 
 test('attempt flow: submit attempt stores answer and increments lessons completed', async () => {
@@ -347,6 +644,11 @@ test('review queue groups persisted review states into due now later today and t
     const token = await registerAndGetToken();
     const user = await User.findOne({ email: TEST_USER.email });
     const now = new Date();
+    const endOfToday = new Date(now);
+    endOfToday.setHours(23, 59, 59, 999);
+    const millisUntilEndOfToday = Math.max(1, endOfToday.getTime() - now.getTime());
+    // Keep this due date safely in the current local day to avoid timezone-dependent flakiness.
+    const laterTodayDueAt = new Date(now.getTime() + Math.floor(millisUntilEndOfToday / 2));
     const startOfTomorrow = new Date(now);
     startOfTomorrow.setHours(24, 0, 0, 0);
 
@@ -413,7 +715,7 @@ test('review queue groups persisted review states into due now later today and t
             lapses: 1,
             easeFactor: 2.2,
             intervalHours: 10,
-            dueAt: new Date(now.getTime() + (4 * 60 * 60 * 1000)),
+            dueAt: laterTodayDueAt,
             priority: 4,
             reason: 'scheduled_review_due',
             lastAttemptedAt: new Date(now.getTime() - (6 * 60 * 60 * 1000)),

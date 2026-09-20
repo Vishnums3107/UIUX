@@ -1,0 +1,1073 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Adaptive Tamil Platform Critical API Contracts",
+    "version": "1.0.0",
+    "description": "Critical endpoint OpenAPI contract used for launch-readiness response governance."
+  },
+  "servers": [
+    {
+      "url": "http://localhost:5000/api",
+      "description": "Local development"
+    }
+  ],
+  "tags": [
+    { "name": "Auth" },
+    { "name": "Lessons" },
+    { "name": "Attempts" },
+    { "name": "Admin" }
+  ],
+  "paths": {
+    "/auth/register": {
+      "post": {
+        "tags": ["Auth"],
+        "operationId": "registerUser",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["name", "email", "password"],
+                "properties": {
+                  "name": { "type": "string", "minLength": 2, "maxLength": 50 },
+                  "email": { "type": "string", "format": "email" },
+                  "password": { "type": "string", "minLength": 6 }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Registered",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthTokenResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "tags": ["Auth"],
+        "operationId": "loginUser",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["email", "password"],
+                "properties": {
+                  "email": { "type": "string", "format": "email" },
+                  "password": { "type": "string", "minLength": 1 }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Authenticated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthTokenResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/profile": {
+      "get": {
+        "tags": ["Auth"],
+        "operationId": "getProfile",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Current profile",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SerializedUser"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": ["Auth"],
+        "operationId": "updateProfile",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProfileRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated profile",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SerializedUser"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/adaptive-profile": {
+      "get": {
+        "tags": ["Auth"],
+        "operationId": "getAdaptiveProfileInsights",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Adaptive profile insights with category recommendations",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdaptiveProfileInsightsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/forgotpassword": {
+      "post": {
+        "tags": ["Auth"],
+        "operationId": "forgotPassword",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["email"],
+                "properties": {
+                  "email": { "type": "string", "format": "email" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Generic password reset response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForgotPasswordResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/resetpassword/{resettoken}": {
+      "put": {
+        "tags": ["Auth"],
+        "operationId": "resetPassword",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "resettoken",
+            "required": true,
+            "schema": { "type": "string", "minLength": 1 }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["password"],
+                "properties": {
+                  "password": { "type": "string", "minLength": 6 }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Password reset",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResetPasswordResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/lessons": {
+      "get": {
+        "tags": ["Lessons"],
+        "operationId": "listLessons",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Lesson list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/LessonEntity" }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["Lessons"],
+        "operationId": "createLesson",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateLessonRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created lesson",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LessonEntity"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/lessons/{id}": {
+      "put": {
+        "tags": ["Lessons"],
+        "operationId": "updateLesson",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-fA-F0-9]{24}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "minProperties": 1,
+                "additionalProperties": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated lesson",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LessonEntity"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Lessons"],
+        "operationId": "deleteLesson",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-fA-F0-9]{24}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Delete confirmation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteLessonResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/lessons/categories": {
+      "get": {
+        "tags": ["Lessons"],
+        "operationId": "getCategorySummary",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Category summary",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CategorySummaryItem"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/lessons/stages/progress": {
+      "get": {
+        "tags": ["Lessons"],
+        "operationId": "getStageProgress",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Progress by stage",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/StageProgressItem"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/attempts": {
+      "post": {
+        "tags": ["Attempts"],
+        "operationId": "submitAttempt",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubmitAttemptRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Attempt stored",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AttemptSubmitResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/attempts/stats": {
+      "get": {
+        "tags": ["Attempts"],
+        "operationId": "getAttemptStats",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Attempt stats",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AttemptStatsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/analytics": {
+      "get": {
+        "tags": ["Admin"],
+        "operationId": "getAdminAnalytics",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Platform analytics",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminAnalyticsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/users/{id}/progress": {
+      "get": {
+        "tags": ["Admin"],
+        "operationId": "getAdminUserProgress",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-fA-F0-9]{24}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Detailed learner progress",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminUserProgressResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "schemas": {
+      "Badge": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "name", "icon"],
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "icon": { "type": "string" },
+          "earnedAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "SerializedUser": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "name",
+          "email",
+          "skill_score",
+          "level",
+          "lessons_completed",
+          "unlockedStages",
+          "masteryPassedStages",
+          "xp",
+          "totalXP",
+          "current_streak",
+          "longest_streak",
+          "badges",
+          "avatarId",
+          "adaptivePreferences",
+          "adaptiveProfile",
+          "role",
+          "createdAt"
+        ],
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "email": { "type": "string", "format": "email" },
+          "skill_score": { "type": "number" },
+          "level": {
+            "type": "string",
+            "enum": ["Beginner", "Intermediate", "Advanced"]
+          },
+          "lessons_completed": { "type": "integer", "minimum": 0 },
+          "unlockedStages": {
+            "type": "array",
+            "items": { "type": "integer", "minimum": 1, "maximum": 10 }
+          },
+          "masteryPassedStages": {
+            "type": "array",
+            "items": { "type": "integer", "minimum": 1, "maximum": 10 }
+          },
+          "xp": { "type": "number", "minimum": 0 },
+          "totalXP": { "type": "number", "minimum": 0 },
+          "current_streak": { "type": "number", "minimum": 0 },
+          "longest_streak": { "type": "number", "minimum": 0 },
+          "badges": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/Badge" }
+          },
+          "avatarId": { "type": "string" },
+          "adaptivePreferences": { "$ref": "#/components/schemas/AdaptivePreferences" },
+          "adaptiveProfile": { "$ref": "#/components/schemas/AdaptiveProfile" },
+          "role": { "type": "string", "enum": ["user", "admin"] },
+          "createdAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "AdaptivePreferences": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["modePreference", "immersiveModeDefault"],
+        "properties": {
+          "modePreference": {
+            "type": "string",
+            "enum": ["auto", "support", "balanced", "challenge"]
+          },
+          "immersiveModeDefault": { "type": "boolean" }
+        }
+      },
+      "AdaptiveProfile": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "recommendedMode",
+          "recommendedDifficulty",
+          "supportNeed",
+          "challengeReadiness",
+          "stabilityScore",
+          "confidenceScore",
+          "lastUpdatedAt"
+        ],
+        "properties": {
+          "recommendedMode": {
+            "type": "string",
+            "enum": ["support", "balanced", "challenge"]
+          },
+          "recommendedDifficulty": {
+            "type": "string",
+            "enum": ["Beginner", "Intermediate", "Advanced"]
+          },
+          "supportNeed": { "type": "number", "minimum": 0, "maximum": 100 },
+          "challengeReadiness": { "type": "number", "minimum": 0, "maximum": 100 },
+          "stabilityScore": { "type": "number", "minimum": 0, "maximum": 100 },
+          "confidenceScore": { "type": "number", "minimum": 0, "maximum": 100 },
+          "lastUpdatedAt": { "type": ["string", "null"], "format": "date-time" }
+        }
+      },
+      "AdaptiveCategoryRecommendation": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "category",
+          "recommendedMode",
+          "recommendedDifficulty",
+          "supportNeed",
+          "challengeReadiness",
+          "confidenceScore",
+          "attemptCount",
+          "successRate",
+          "avgErrors",
+          "avgHints",
+          "avgRetries",
+          "priorityScore",
+          "reason"
+        ],
+        "properties": {
+          "category": {
+            "type": "string",
+            "enum": ["uyir", "mei", "uyir-mei", "grammar", "sentences"]
+          },
+          "recommendedMode": {
+            "type": "string",
+            "enum": ["support", "balanced", "challenge"]
+          },
+          "recommendedDifficulty": {
+            "type": "string",
+            "enum": ["Beginner", "Intermediate", "Advanced"]
+          },
+          "supportNeed": { "type": "number", "minimum": 0, "maximum": 100 },
+          "challengeReadiness": { "type": "number", "minimum": 0, "maximum": 100 },
+          "confidenceScore": { "type": "number", "minimum": 0, "maximum": 100 },
+          "attemptCount": { "type": "integer", "minimum": 0 },
+          "successRate": { "type": "number", "minimum": 0, "maximum": 100 },
+          "avgErrors": { "type": "number", "minimum": 0 },
+          "avgHints": { "type": "number", "minimum": 0 },
+          "avgRetries": { "type": "number", "minimum": 0 },
+          "priorityScore": { "type": "number", "minimum": 0, "maximum": 100 },
+          "reason": { "type": "string" }
+        }
+      },
+      "AdaptiveProfileInsightsResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "adaptivePreferences",
+          "adaptiveProfile",
+          "categoryRecommendations",
+          "generatedAt",
+          "attemptWindowSize"
+        ],
+        "properties": {
+          "adaptivePreferences": { "$ref": "#/components/schemas/AdaptivePreferences" },
+          "adaptiveProfile": { "$ref": "#/components/schemas/AdaptiveProfile" },
+          "categoryRecommendations": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/AdaptiveCategoryRecommendation" }
+          },
+          "generatedAt": { "type": "string", "format": "date-time" },
+          "attemptWindowSize": { "type": "integer", "minimum": 0 }
+        }
+      },
+      "UpdateProfileRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "minProperties": 1,
+        "properties": {
+          "name": { "type": "string", "minLength": 2, "maxLength": 50 },
+          "avatarId": { "type": "string" },
+          "adaptivePreferences": { "$ref": "#/components/schemas/AdaptivePreferences" }
+        }
+      },
+      "AuthTokenResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["token", "user"],
+        "properties": {
+          "token": { "type": "string" },
+          "user": { "$ref": "#/components/schemas/SerializedUser" }
+        }
+      },
+      "ForgotPasswordResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["success", "message"],
+        "properties": {
+          "success": { "type": "boolean" },
+          "message": { "type": "string" },
+          "resetToken": { "type": "string" }
+        }
+      },
+      "ResetPasswordResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["success", "token", "user"],
+        "properties": {
+          "success": { "type": "boolean" },
+          "token": { "type": "string" },
+          "user": { "$ref": "#/components/schemas/SerializedUser" }
+        }
+      },
+      "LessonEntity": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": [
+          "_id",
+          "category",
+          "difficulty",
+          "type",
+          "question",
+          "correct_answer",
+          "stage",
+          "stageOrder",
+          "exerciseType",
+          "order"
+        ],
+        "properties": {
+          "_id": { "type": "string" },
+          "category": {
+            "type": "string",
+            "enum": ["uyir", "mei", "uyir-mei", "grammar", "sentences"]
+          },
+          "difficulty": {
+            "type": "string",
+            "enum": ["Beginner", "Intermediate", "Advanced"]
+          },
+          "type": {
+            "type": "string",
+            "enum": ["mcq", "text"]
+          },
+          "question": { "type": "string" },
+          "correct_answer": { "type": "string" },
+          "stage": { "type": "integer", "minimum": 1, "maximum": 10 },
+          "stageOrder": { "type": "integer", "minimum": 0 },
+          "exerciseType": { "type": "string" },
+          "order": { "type": "integer", "minimum": 0 },
+          "isMasteryTest": { "type": "boolean" },
+          "unlocksStage": { "type": "integer", "minimum": 1, "maximum": 10 }
+        }
+      },
+      "CreateLessonRequest": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": [
+          "category",
+          "difficulty",
+          "type",
+          "question",
+          "options",
+          "correct_answer",
+          "stage",
+          "stageOrder",
+          "order",
+          "exerciseType"
+        ],
+        "properties": {
+          "category": {
+            "type": "string",
+            "enum": ["uyir", "mei", "uyir-mei", "grammar", "sentences"]
+          },
+          "difficulty": {
+            "type": "string",
+            "enum": ["Beginner", "Intermediate", "Advanced"]
+          },
+          "type": {
+            "type": "string",
+            "enum": ["mcq", "text"]
+          },
+          "question": { "type": "string", "minLength": 1 },
+          "options": {
+            "type": "array",
+            "minItems": 2,
+            "items": { "type": "string" }
+          },
+          "correct_answer": { "type": "string", "minLength": 1 },
+          "stage": { "type": "integer", "minimum": 1, "maximum": 10 },
+          "stageOrder": { "type": "integer", "minimum": 0 },
+          "order": { "type": "integer", "minimum": 0 },
+          "exerciseType": { "type": "string" }
+        }
+      },
+      "DeleteLessonResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["message"],
+        "properties": {
+          "message": { "type": "string" }
+        }
+      },
+      "CategorySummaryItem": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["_id", "count"],
+        "properties": {
+          "_id": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["category", "difficulty"],
+            "properties": {
+              "category": { "type": "string" },
+              "difficulty": { "type": "string" }
+            }
+          },
+          "count": { "type": "integer", "minimum": 0 }
+        }
+      },
+      "StageProgressItem": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["stage", "totalLessons", "completedLessons", "unlocked", "masteryPassed"],
+        "properties": {
+          "stage": { "type": "integer", "minimum": 1, "maximum": 10 },
+          "totalLessons": { "type": "integer", "minimum": 0 },
+          "completedLessons": { "type": "integer", "minimum": 0 },
+          "unlocked": { "type": "boolean" },
+          "masteryPassed": { "type": "boolean" }
+        }
+      },
+      "SubmitAttemptRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["lesson_id", "time_spent", "score"],
+        "properties": {
+          "lesson_id": {
+            "type": "string",
+            "pattern": "^[a-fA-F0-9]{24}$"
+          },
+          "time_spent": { "type": "number", "minimum": 0, "maximum": 3600 },
+          "errors": { "type": "integer", "minimum": 0, "maximum": 100 },
+          "hints_used": { "type": "integer", "minimum": 0, "maximum": 100 },
+          "retries": { "type": "integer", "minimum": 0, "maximum": 100 },
+          "idle_time": { "type": "number", "minimum": 0, "maximum": 3600 },
+          "score": { "type": "integer", "enum": [0, 1] },
+          "answer_given": { "type": "string", "maxLength": 500 }
+        }
+      },
+      "AttemptBadge": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "name", "icon"],
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "icon": { "type": "string" }
+        }
+      },
+      "SkillUpdateDetails": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "successRate",
+          "timeEfficiency",
+          "errorRate",
+          "hintDependency",
+          "rawScore",
+          "retryDependency",
+          "idlePenalty",
+          "confidence",
+          "smoothingWeight"
+        ],
+        "properties": {
+          "successRate": { "type": "number" },
+          "timeEfficiency": { "type": "number" },
+          "errorRate": { "type": "number" },
+          "hintDependency": { "type": "number" },
+          "rawScore": { "type": "number" },
+          "retryDependency": { "type": "number" },
+          "idlePenalty": { "type": "number" },
+          "confidence": { "type": "number" },
+          "smoothingWeight": { "type": "number" }
+        }
+      },
+      "ReviewProgress": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["clearedToday", "currentStreak", "longestStreak", "lastClearedAt"],
+        "properties": {
+          "clearedToday": { "type": "integer", "minimum": 0 },
+          "currentStreak": { "type": "integer", "minimum": 0 },
+          "longestStreak": { "type": "integer", "minimum": 0 },
+          "lastClearedAt": {
+            "type": ["string", "null"],
+            "format": "date-time"
+          }
+        }
+      },
+      "AttemptSubmitResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["attempt", "skillUpdate", "reviewProgress"],
+        "properties": {
+          "attempt": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "score", "time_spent"],
+            "properties": {
+              "id": { "type": "string" },
+              "score": { "type": "integer", "enum": [0, 1] },
+              "time_spent": { "type": "number", "minimum": 0 }
+            }
+          },
+          "skillUpdate": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "skill_score",
+              "level",
+              "lessons_completed",
+              "current_streak",
+              "longest_streak",
+              "xp",
+              "totalXP",
+              "xpEarned",
+              "unlockedStages",
+              "masteryPassedStages",
+              "new_badges",
+              "adaptiveProfile",
+              "details",
+              "levelChanged",
+              "previousLevel",
+              "adaptationDirection"
+            ],
+            "properties": {
+              "skill_score": { "type": "number" },
+              "level": { "type": "string", "enum": ["Beginner", "Intermediate", "Advanced"] },
+              "lessons_completed": { "type": "integer", "minimum": 0 },
+              "current_streak": { "type": "number", "minimum": 0 },
+              "longest_streak": { "type": "number", "minimum": 0 },
+              "xp": { "type": "number", "minimum": 0 },
+              "totalXP": { "type": "number", "minimum": 0 },
+              "xpEarned": { "type": "number", "minimum": 0 },
+              "unlockedStages": {
+                "type": "array",
+                "items": { "type": "integer", "minimum": 1, "maximum": 10 }
+              },
+              "masteryPassedStages": {
+                "type": "array",
+                "items": { "type": "integer", "minimum": 1, "maximum": 10 }
+              },
+              "new_badges": {
+                "type": "array",
+                "items": { "$ref": "#/components/schemas/AttemptBadge" }
+              },
+              "adaptiveProfile": { "$ref": "#/components/schemas/AdaptiveProfile" },
+              "details": { "$ref": "#/components/schemas/SkillUpdateDetails" },
+              "levelChanged": { "type": "boolean" },
+              "previousLevel": { "type": "string", "enum": ["Beginner", "Intermediate", "Advanced"] },
+              "adaptationDirection": { "type": "string", "enum": ["upgrade", "downgrade", "none"] }
+            }
+          },
+          "reviewProgress": { "$ref": "#/components/schemas/ReviewProgress" }
+        }
+      },
+      "AttemptStatsSummary": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["_id", "avgScore", "avgTime", "avgErrors", "avgHints", "totalCorrect"],
+        "properties": {
+          "_id": { "type": ["null", "string", "number", "object"] },
+          "avgScore": { "type": "number" },
+          "avgTime": { "type": "number" },
+          "avgErrors": { "type": "number" },
+          "avgHints": { "type": "number" },
+          "totalCorrect": { "type": "number" }
+        }
+      },
+      "AttemptTrendItem": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["_id", "avgScore", "count", "avgErrors"],
+        "properties": {
+          "_id": { "type": "string" },
+          "avgScore": { "type": "number" },
+          "count": { "type": "integer", "minimum": 0 },
+          "avgErrors": { "type": "number" }
+        }
+      },
+      "AttemptStatsResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["totalAttempts", "summary", "recentTrend"],
+        "properties": {
+          "totalAttempts": { "type": "integer", "minimum": 0 },
+          "summary": { "$ref": "#/components/schemas/AttemptStatsSummary" },
+          "recentTrend": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/AttemptTrendItem" }
+          }
+        }
+      },
+      "AdminLevelDistributionItem": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["_id", "count"],
+        "properties": {
+          "_id": { "type": "string" },
+          "count": { "type": "integer", "minimum": 0 }
+        }
+      },
+      "AdminAverages": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["_id", "avgSkill", "avgLessons"],
+        "properties": {
+          "_id": { "type": ["null", "string", "number", "object"] },
+          "avgSkill": { "type": "number" },
+          "avgLessons": { "type": "number" }
+        }
+      },
+      "AdminRecentActivityItem": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["_id", "attempts", "avgScore"],
+        "properties": {
+          "_id": { "type": "string" },
+          "attempts": { "type": "integer", "minimum": 0 },
+          "avgScore": { "type": "number" }
+        }
+      },
+      "AdminAnalyticsResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["totalUsers", "levelDistribution", "averages", "recentActivity"],
+        "properties": {
+          "totalUsers": { "type": "integer", "minimum": 0 },
+          "levelDistribution": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/AdminLevelDistributionItem" }
+          },
+          "averages": { "$ref": "#/components/schemas/AdminAverages" },
+          "recentActivity": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/AdminRecentActivityItem" }
+          }
+        }
+      },
+      "AdminProgressUser": {
+        "type": "object",
+        "required": ["_id", "name", "email", "skill_score", "level", "lessons_completed", "role"],
+        "properties": {
+          "_id": { "type": "string" },
+          "name": { "type": "string" },
+          "email": { "type": "string", "format": "email" },
+          "skill_score": { "type": "number" },
+          "level": { "type": "string" },
+          "lessons_completed": { "type": "integer", "minimum": 0 },
+          "role": { "type": "string" }
+        },
+        "additionalProperties": true
+      },
+      "AdminUserProgressResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["user", "attempts"],
+        "properties": {
+          "user": { "$ref": "#/components/schemas/AdminProgressUser" },
+          "attempts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          }
+        }
+      }
+    }
+  }
+}

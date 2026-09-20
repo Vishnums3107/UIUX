@@ -1,7 +1,10 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import Navbar from './components/Navbar';
+import CommandCenter from './components/CommandCenter';
+import LearnerAssistDock from './components/LearnerAssistDock';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
@@ -36,18 +39,46 @@ function PublicRoute({ children }) {
 
 function AppContent() {
     const { user } = useAuth();
+    const location = useLocation();
+    const [isCommandCenterOpen, setIsCommandCenterOpen] = useState(false);
+
+    useEffect(() => {
+        const isTypingTarget = (target) => {
+            if (!target) return false;
+            const tag = target.tagName?.toLowerCase();
+            return tag === 'input' || tag === 'textarea' || tag === 'select' || target.isContentEditable;
+        };
+
+        const onKeyDown = (event) => {
+            if (!user) return;
+
+            if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+                event.preventDefault();
+                setIsCommandCenterOpen((prev) => !prev);
+            }
+
+            if (event.key === '/' && !event.metaKey && !event.ctrlKey && !isTypingTarget(event.target)) {
+                event.preventDefault();
+                setIsCommandCenterOpen(true);
+            }
+        };
+
+        window.addEventListener('keydown', onKeyDown);
+        return () => window.removeEventListener('keydown', onKeyDown);
+    }, [user]);
 
     return (
-        <div className="min-h-screen bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100 transition-colors duration-300">
+        <div className="app-shell min-h-screen text-gray-900 dark:text-gray-100 transition-colors duration-300">
             {/* Background decoration */}
-            <div className="fixed inset-0 pointer-events-none overflow-hidden">
-                <div className="absolute -top-40 -right-40 w-96 h-96 bg-tamil-500/5 rounded-full blur-3xl" />
-                <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-ocean-500/5 rounded-full blur-3xl" />
+            <div className="ambient-grid fixed inset-0 pointer-events-none overflow-hidden">
+                <div className="ambient-glow ambient-glow-a" />
+                <div className="ambient-glow ambient-glow-b" />
+                <div className="ambient-glow ambient-glow-c" />
             </div>
 
             <div className="relative z-10">
-                {user && <Navbar />}
-                <main className="pb-12">
+                {user && <Navbar onOpenCommandCenter={() => setIsCommandCenterOpen(true)} />}
+                <main key={`${location.pathname}${location.search}`} className="pb-12 route-transition-stage">
                     <Routes>
                         <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
                         <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
@@ -62,6 +93,12 @@ function AppContent() {
                     </Routes>
                 </main>
             </div>
+
+            <CommandCenter
+                isOpen={isCommandCenterOpen}
+                onClose={() => setIsCommandCenterOpen(false)}
+            />
+            <LearnerAssistDock onOpenCommandCenter={() => setIsCommandCenterOpen(true)} />
         </div>
     );
 }

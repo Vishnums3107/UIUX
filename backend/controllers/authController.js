@@ -2,15 +2,76 @@ const jwt = require('jsonwebtoken');
 const { validationResult, body } = require('express-validator');
 const crypto = require('crypto');
 const User = require('../models/User');
+const LessonAttempt = require('../models/LessonAttempt');
 const { hasEmailConfig, buildPasswordResetUrl, sendPasswordResetEmail } = require('../utils/email');
 const logger = require('../utils/logger');
 const { trackAuthFailure, hashIdentifier } = require('../utils/alerting');
+const { getJwtSigningSecret } = require('../utils/jwtSecrets');
+const {
+    buildAdaptiveProfile,
+    buildCategoryRecommendations,
+    normalizeAdaptivePreferences,
+    normalizeAdaptiveProfile
+} = require('../utils/adaptiveProfile');
+const { buildTopicIntelligence } = require('../utils/topicIntelligence');
+const { buildLearningDirector } = require('../utils/learningDirector');
+
+const NON_MASTERY_FILTER = {
+    $or: [
+        { isMasteryTest: { $exists: false } },
+        { isMasteryTest: false }
+    ]
+};
+
+const ADAPTIVE_ATTEMPT_WINDOW = 60;
+
+const buildStageProgressSnapshot = (user = {}) => {
+    const unlockedStages = Array.isArray(user.unlockedStages) && user.unlockedStages.length > 0
+        ? [...new Set(user.unlockedStages)]
+        : [1];
+    const masteryPassedStages = new Set(Array.isArray(user.masteryPassedStages) ? user.masteryPassedStages : []);
+
+    return unlockedStages
+        .sort((a, b) => a - b)
+        .map((stage) => ({
+            stage,
+            unlocked: true,
+            masteryPassed: masteryPassedStages.has(stage)
+        }));
+};
 
 // Generate JWT token
 const generateToken = (userId) => {
-    return jwt.sign({ id: userId }, process.env.JWT_SECRET, {
+    return jwt.sign({ id: userId }, getJwtSigningSecret(), {
         expiresIn: process.env.JWT_EXPIRE || '7d'
     });
+};
+
+const serializeUser = (user) => ({
+    id: user._id,
+    name: user.name,
+    email: user.email,
+    skill_score: user.skill_score,
+    level: user.level,
+    lessons_completed: user.lessons_completed,
+    unlockedStages: user.unlockedStages || [1],
+    masteryPassedStages: user.masteryPassedStages || [],
+    xp: user.xp || 0,
+    totalXP: user.totalXP || 0,
+    current_streak: user.current_streak,
+    longest_streak: user.longest_streak,
+    badges: user.badges,
+    avatarId: user.avatarId,
+    adaptivePreferences: normalizeAdaptivePreferences(user.adaptivePreferences),
+    adaptiveProfile: normalizeAdaptiveProfile(user.adaptiveProfile, user),
+    role: user.role,
+    createdAt: user.createdAt
+});
+
+const BCRYPT_HASH_PATTERN = /^\$2[abxy]?\$\d{2}\$[./A-Za-z0-9]{53}$/;
+
+const hasValidPasswordHash = (hash) => {
+    return typeof hash === 'string' && BCRYPT_HASH_PATTERN.test(hash);
 };
 
 const readPositiveInt = (value, fallback) => {
@@ -83,21 +144,14 @@ const register = async (req, res) => {
 
         res.status(201).json({
             token,
-            user: {
-                id: user._id,
-                name: user.name,
-                email: user.email,
-                skill_score: user.skill_score,
-                level: user.level,
-                lessons_completed: user.lessons_completed,
-                current_streak: user.current_streak,
-                longest_streak: user.longest_streak,
-                badges: user.badges,
-                avatarId: user.avatarId,
-                role: user.role
-            }
+            user: serializeUser(user)
         });
     } catch (err) {
+        if (err?.message === 'JWT_SIGNING_SECRET_MISSING') {
+            logger.error('jwt_signing_secret_missing', { requestId: req.requestId });
+            return res.status(500).json({ error: 'Authentication is temporarily unavailable.' });
+        }
+
         logger.error('register_error', { requestId: req.requestId, error: err.message });
         res.status(500).json({ error: 'Registration failed.' });
     }
@@ -135,6 +189,20 @@ const login = async (req, res) => {
             return res.status(429).json({ error: 'Too many login attempts. Try again later.' });
         }
 
+        if (!hasValidPasswordHash(user.password)) {
+            logger.error('auth_user_password_hash_invalid', {
+                requestId: req.requestId,
+                userId: user._id,
+                emailHash: hashIdentifier(email)
+            });
+            trackAuthFailure({
+                route: '/api/auth/login',
+                reason: 'credentials_record_invalid',
+                identifierHash: hashIdentifier(email)
+            });
+            return res.status(401).json({ error: 'Invalid email or password.' });
+        }
+
         const isMatch = await user.comparePassword(password);
         if (!isMatch) {
             const lockTriggered = await registerFailedLogin(user);
@@ -157,21 +225,14 @@ const login = async (req, res) => {
 
         res.json({
             token,
-            user: {
-                id: user._id,
-                name: user.name,
-                email: user.email,
-                skill_score: user.skill_score,
-                level: user.level,
-                lessons_completed: user.lessons_completed,
-                current_streak: user.current_streak,
-                longest_streak: user.longest_streak,
-                badges: user.badges,
-                avatarId: user.avatarId,
-                role: user.role
-            }
+            user: serializeUser(user)
         });
     } catch (err) {
+        if (err?.message === 'JWT_SIGNING_SECRET_MISSING') {
+            logger.error('jwt_signing_secret_missing', { requestId: req.requestId });
+            return res.status(500).json({ error: 'Authentication is temporarily unavailable.' });
+        }
+
         logger.error('login_error', { requestId: req.requestId, error: err.message });
         res.status(500).json({ error: 'Login failed.' });
     }
@@ -184,22 +245,139 @@ const login = async (req, res) => {
 const getProfile = async (req, res) => {
     try {
         const user = await User.findById(req.user._id);
-        res.json({
-            id: user._id,
-            name: user.name,
-            email: user.email,
-            skill_score: user.skill_score,
-            level: user.level,
-            lessons_completed: user.lessons_completed,
-            current_streak: user.current_streak,
-            longest_streak: user.longest_streak,
-            badges: user.badges,
-            avatarId: user.avatarId,
-            role: user.role,
-            createdAt: user.createdAt
-        });
+        if (!user) {
+            return res.status(404).json({ error: 'User not found.' });
+        }
+        res.json(serializeUser(user));
     } catch (err) {
         res.status(500).json({ error: 'Failed to fetch profile.' });
+    }
+};
+
+/**
+ * GET /api/auth/adaptive-profile
+ * Returns adaptive profile plus category-level recommendations from recent attempts.
+ */
+const getAdaptiveProfileInsights = async (req, res) => {
+    try {
+        const user = await User.findById(req.user._id);
+        if (!user) {
+            return res.status(404).json({ error: 'User not found.' });
+        }
+
+        const recentAttempts = await LessonAttempt.find({
+            user_id: user._id,
+            ...NON_MASTERY_FILTER
+        })
+            .sort({ createdAt: -1 })
+            .limit(ADAPTIVE_ATTEMPT_WINDOW)
+            .populate('lesson_id', 'category')
+            .lean();
+
+        const adaptiveProfile = normalizeAdaptiveProfile(
+            buildAdaptiveProfile({ user, recentAttempts }),
+            user
+        );
+
+        const categoryRecommendations = buildCategoryRecommendations({
+            user,
+            recentAttempts
+        });
+
+        return res.status(200).json({
+            adaptivePreferences: normalizeAdaptivePreferences(user.adaptivePreferences),
+            adaptiveProfile,
+            categoryRecommendations,
+            generatedAt: new Date().toISOString(),
+            attemptWindowSize: recentAttempts.length
+        });
+    } catch (err) {
+        logger.error('adaptive_profile_insights_error', {
+            requestId: req.requestId,
+            error: err.message
+        });
+        return res.status(500).json({ error: 'Failed to load adaptive profile insights.' });
+    }
+};
+
+/**
+ * GET /api/auth/topic-intelligence
+ * Returns topic-level mastery map, stage/category recommendations, and sequencing guidance.
+ */
+const getTopicIntelligenceInsights = async (req, res) => {
+    try {
+        const user = await User.findById(req.user._id);
+        if (!user) {
+            return res.status(404).json({ error: 'User not found.' });
+        }
+
+        const recentAttempts = await LessonAttempt.find({
+            user_id: user._id,
+            ...NON_MASTERY_FILTER
+        })
+            .sort({ createdAt: -1 })
+            .limit(ADAPTIVE_ATTEMPT_WINDOW)
+            .populate('lesson_id', 'category stage difficulty')
+            .lean();
+
+        const stageProgress = buildStageProgressSnapshot(user);
+        const intelligence = buildTopicIntelligence({
+            user,
+            recentAttempts,
+            stageProgress
+        });
+
+        return res.status(200).json(intelligence);
+    } catch (err) {
+        logger.error('topic_intelligence_insights_error', {
+            requestId: req.requestId,
+            error: err.message
+        });
+        return res.status(500).json({ error: 'Failed to load topic intelligence insights.' });
+    }
+};
+
+/**
+ * GET /api/auth/learning-director
+ * Returns directed session planning and confidence/recovery forecasting.
+ */
+const getLearningDirectorInsights = async (req, res) => {
+    try {
+        const user = await User.findById(req.user._id);
+        if (!user) {
+            return res.status(404).json({ error: 'User not found.' });
+        }
+
+        const recentAttempts = await LessonAttempt.find({
+            user_id: user._id,
+            ...NON_MASTERY_FILTER
+        })
+            .sort({ createdAt: -1 })
+            .limit(ADAPTIVE_ATTEMPT_WINDOW)
+            .populate('lesson_id', 'category stage difficulty')
+            .lean();
+
+        const stageProgress = buildStageProgressSnapshot(user);
+        const topicIntelligence = buildTopicIntelligence({
+            user,
+            recentAttempts,
+            stageProgress
+        });
+
+        const learningDirector = buildLearningDirector({
+            user,
+            recentAttempts,
+            stageProgress,
+            topicIntelligence
+        });
+
+        return res.status(200).json(learningDirector);
+    } catch (err) {
+        logger.error('learning_director_insights_error', {
+            requestId: req.requestId,
+            error: err.message
+        });
+        return res.status(500).json({ error: 'Failed to load learning director insights.' });
     }
 };
 
@@ -217,7 +395,16 @@ const loginValidation = [
 
 const updateProfileValidation = [
     body('name').optional().trim().isLength({ min: 2, max: 50 }).withMessage('Name must be 2-50 characters'),
-    body('avatarId').optional().trim().isString()
+    body('avatarId').optional().trim().isString(),
+    body('adaptivePreferences').optional().isObject().withMessage('adaptivePreferences must be an object'),
+    body('adaptivePreferences.modePreference')
+        .optional()
+        .isIn(['auto', 'support', 'balanced', 'challenge'])
+        .withMessage('adaptivePreferences.modePreference must be auto, support, balanced, or challenge'),
+    body('adaptivePreferences.immersiveModeDefault')
+        .optional()
+        .isBoolean()
+        .withMessage('adaptivePreferences.immersiveModeDefault must be boolean')
 ];
 
 const forgotPasswordValidation = [
@@ -239,35 +426,25 @@ const updateProfile = async (req, res) => {
             return res.status(400).json({ errors: errors.array() });
         }
 
-        const { name, avatarId } = req.body;
-        const updates = {};
-        if (name) updates.name = name;
-        if (avatarId) updates.avatarId = avatarId;
-
-        const user = await User.findByIdAndUpdate(
-            req.user._id,
-            { $set: updates },
-            { new: true, runValidators: true }
-        );
+        const { name, avatarId, adaptivePreferences } = req.body;
+        const user = await User.findById(req.user._id);
 
         if (!user) {
             return res.status(404).json({ error: 'User not found' });
         }
 
-        res.json({
-            id: user._id,
-            name: user.name,
-            email: user.email,
-            skill_score: user.skill_score,
-            level: user.level,
-            lessons_completed: user.lessons_completed,
-            current_streak: user.current_streak,
-            longest_streak: user.longest_streak,
-            badges: user.badges,
-            avatarId: user.avatarId,
-            role: user.role,
-            createdAt: user.createdAt
-        });
+        if (name) user.name = name;
+        if (avatarId) user.avatarId = avatarId;
+        if (adaptivePreferences) {
+            user.adaptivePreferences = normalizeAdaptivePreferences({
+                ...(user.adaptivePreferences?.toObject?.() || user.adaptivePreferences || {}),
+                ...adaptivePreferences
+            });
+        }
+
+        await user.save();
+
+        res.json(serializeUser(user));
     } catch (err) {
         logger.error('update_profile_error', { requestId: req.requestId, error: err.message });
         res.status(500).json({ error: 'Failed to update profile.' });
@@ -361,13 +538,7 @@ const resetPassword = async (req, res) => {
         res.status(200).json({
             success: true,
             token,
-            user: {
-                id: user._id,
-                name: user.name,
-                email: user.email,
-                avatarId: user.avatarId,
-                role: user.role
-            }
+            user: serializeUser(user)
         });
     } catch (err) {
         logger.error('reset_password_error', { requestId: req.requestId, error: err.message });
@@ -376,7 +547,15 @@ const resetPassword = async (req, res) => {
 };
 
 module.exports = {
-    register, login, getProfile, updateProfile, forgotPassword, resetPassword,
+    register,
+    login,
+    getProfile,
+    getAdaptiveProfileInsights,
+    getTopicIntelligenceInsights,
+    getLearningDirectorInsights,
+    updateProfile,
+    forgotPassword,
+    resetPassword,
     registerValidation, loginValidation, updateProfileValidation,
     forgotPasswordValidation, resetPasswordValidation
 };

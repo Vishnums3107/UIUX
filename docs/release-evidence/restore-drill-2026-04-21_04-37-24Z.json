@@ -1,0 +1,33 @@
+{
+  "drillDate": "2026-04-21T04:37:24.559Z",
+  "operator": "msvis",
+  "backupSourceTimestamp": "2026-04-21T04:37:22.192Z",
+  "backupType": "logical archive (mongodump)",
+  "restoreTarget": "mongodb://127.0.0.1:55113/tamil-learning-restore-source",
+  "startTime": "2026-04-21T04:37:23.856Z",
+  "endTime": "2026-04-21T04:37:24.559Z",
+  "durationSeconds": 0.703,
+  "documentCountChecks": {
+    "before": {
+      "users": 1,
+      "lessons": 2,
+      "lessonattempts": 2
+    },
+    "after": {
+      "users": 1,
+      "lessons": 2,
+      "lessonattempts": 2
+    }
+  },
+  "apiValidation": {
+    "healthStatus": 200,
+    "readinessStatus": 200,
+    "readinessState": "ready"
+  },
+  "archiveSha256": "b21ee6c667820d10d4b3fd28450a09e17d352ce6d575190fa6909b0c71448f06",
+  "toolVersions": {
+    "mongodump": "mongodump version: 100.14.1",
+    "mongorestore": "mongorestore version: 100.14.1"
+  },
+  "status": "passed"
+}

@@ -2,6 +2,8 @@
 
 > Step-by-step instructions to deploy the platform to production using MongoDB Atlas, Render, and Vercel.
 
+> Launch Readiness Governance: [DEPLOYMENT_READY_IMPLEMENTATION_PLAN.md](DEPLOYMENT_READY_IMPLEMENTATION_PLAN.md) is the canonical source for launch scope, gates, and sign-off.
+
 ---
 
 ## Prerequisites
@@ -69,7 +71,7 @@ Expected output:
 ```
 Connected to MongoDB
 Cleared existing lessons
-✅ Seeded 53 Tamil lessons successfully!
+✅ Seeded 333 Tamil lessons successfully!
 ```
 
 ---
@@ -100,6 +102,7 @@ In the Render dashboard, add these environment variables:
 |---|---|
 | `MONGODB_URI` | Your Atlas connection string |
 | `JWT_SECRET` | Generate with: `node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"` |
+| `JWT_SECRET_PREVIOUS` | Optional comma-separated fallback secrets during rotation window |
 | `JWT_EXPIRE` | `7d` |
 | `FRONTEND_URL` | `https://your-app.vercel.app` (set after frontend deploy) |
 | `PASSWORD_RESET_URL` | `https://your-app.vercel.app/resetpassword` |
@@ -124,7 +127,15 @@ In the Render dashboard, add these environment variables:
 | `ALERT_5XX_WINDOW_SECONDS` | `300` |
 | `ALERT_AUTH_FAILURE_THRESHOLD` | `25` |
 | `ALERT_AUTH_FAILURE_WINDOW_SECONDS` | `600` |
+| `ALERT_FRONTEND_ERROR_THRESHOLD` | `10` |
+| `ALERT_FRONTEND_ERROR_WINDOW_SECONDS` | `300` |
+| `ALERT_FRONTEND_ERROR_SEVERITIES` | `high,critical` |
 | `ALERT_COOLDOWN_SECONDS` | `300` |
+| `ALERT_ROUTING_PRIMARY` | `oncall-backend` |
+| `ALERT_ROUTING_SECONDARY` | `oncall-frontend` |
+| `ALERT_ROUTING_ESCALATION` | `eng-manager` |
+| `FRONTEND_TELEMETRY_RATE_LIMIT_WINDOW_MINUTES` | `5` |
+| `FRONTEND_TELEMETRY_RATE_LIMIT_MAX` | `60` |
 | `ALERT_WEBHOOK_URL` | Optional webhook URL for alert forwarding |
 | `READINESS_EMAIL_VERIFY` | `true` |
 | `READINESS_EMAIL_VERIFY_TIMEOUT_MS` | `2500` |
@@ -198,6 +209,7 @@ curl https://tamil-learning-api.onrender.com/api/readiness
 | Variable | Value |
 |---|---|
 | `VITE_API_URL` | `https://tamil-learning-api.onrender.com/api` |
+| `VITE_APP_RELEASE` | `2026.04.20-rc1` (or your CI build/version tag) |
 
 ### 3.3 Configure Rewrites
 
@@ -223,9 +235,35 @@ Go back to Render and update the backend's `FRONTEND_URL` environment variable:
 FRONTEND_URL=https://your-app.vercel.app
 ```
 
+### 3.6 Verify CORS Allowlist and Proxy Trust in Runtime Logs
+
+After redeploying backend, check log entry `runtime_network_config` and confirm:
+
+- `corsAllowedOrigins` contains only your approved frontend origins.
+- `trustProxy` matches your platform topology (`1` for single proxy hop on Render/Railway).
+
+If `NODE_ENV=production` and wildcard origins are present, backend logs `cors_wildcard_configured_in_production` and browser CORS requests are denied until fixed.
+
+### 3.7 Apply JWT Rotation Safely
+
+When rotating auth secrets:
+
+1. Set new secret in `JWT_SECRET`.
+2. Move previous secret into `JWT_SECRET_PREVIOUS`.
+3. Deploy and keep overlap for at least one full token TTL (`JWT_EXPIRE`).
+4. Remove aged fallback secrets from `JWT_SECRET_PREVIOUS`.
+
+Runbook reference: `docs/SECRET_ROTATION_RUNBOOK.md`.
+
 ---
 
 ## Step 4: Post-Deployment
+
+Phase 4 operations references:
+
+- `docs/PRODUCTION_ROLLOUT_RUNBOOK.md`
+- `docs/HYPERCARE_RUNBOOK.md`
+- `docs/ROLLBACK_PLAYBOOK.md`
 
 ### 4.1 Create Admin User
 
@@ -240,6 +278,10 @@ FRONTEND_URL=https://your-app.vercel.app
 ### 4.2 Verify All Endpoints
 
 ```bash
+# Automated deployment verification (recommended)
+cd backend
+npm run verify:deploy -- --baseUrl https://tamil-learning-api.onrender.com
+
 # Health check
 curl https://tamil-learning-api.onrender.com/api/health
 
@@ -273,6 +315,11 @@ Adopt and schedule backups immediately after production go-live:
 - Use Atlas snapshots + nightly `mongodump` archives.
 - Run at least one non-production restore drill each quarter.
 - Follow the full procedure in `docs/BACKUP_RESTORE_RUNBOOK.md`.
+
+For launch-day and hypercare evidence records, start with:
+
+- `docs/release-evidence/phase4-launch-report-template.md`
+- `docs/release-evidence/phase4-hypercare-daily-log-template.md`
 
 ---
 
@@ -325,8 +372,12 @@ Adopt and schedule backups immediately after production go-live:
 - [ ] `FRONTEND_URL` on backend updated to match frontend domain
 - [ ] Admin user created
 - [ ] HTTPS verified (automatic on Vercel/Render)
+- [ ] Automated deploy verification script passed (`npm run verify:deploy -- --baseUrl https://<backend-domain>`)
 - [ ] Health check endpoint responding
 - [ ] Registration and login working
 - [ ] Lessons loading and submittable
 - [ ] Dashboard charts rendering
 - [ ] Admin panel accessible for admin users
+- [ ] Rollout runbook executed with release-day sign-off
+- [ ] Hypercare logs captured for 7 consecutive days
+- [ ] No unresolved Sev-1/Sev-2 incidents at closeout

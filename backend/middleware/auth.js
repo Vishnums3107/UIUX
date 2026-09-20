@@ -1,5 +1,25 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const logger = require('../utils/logger');
+const { getJwtVerificationSecrets } = require('../utils/jwtSecrets');
+
+const verifyTokenWithRotation = (token) => {
+    const verificationSecrets = getJwtVerificationSecrets();
+    let lastError = null;
+
+    for (const secret of verificationSecrets) {
+        try {
+            return jwt.verify(token, secret);
+        } catch (err) {
+            lastError = err;
+            if (err?.name === 'TokenExpiredError') {
+                throw err;
+            }
+        }
+    }
+
+    throw lastError || new Error('TOKEN_VERIFICATION_FAILED');
+};
 
 /**
  * JWT Authentication Middleware
@@ -13,7 +33,7 @@ const auth = async (req, res, next) => {
         }
 
         const token = authHeader.split(' ')[1];
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const decoded = verifyTokenWithRotation(token);
 
         const user = await User.findById(decoded.id);
         if (!user) {
@@ -23,6 +43,11 @@ const auth = async (req, res, next) => {
         req.user = user;
         next();
     } catch (err) {
+        if (err?.message === 'JWT_SIGNING_SECRET_MISSING') {
+            logger.error('jwt_signing_secret_missing', { requestId: req.requestId });
+            return res.status(500).json({ error: 'Authentication configuration error.' });
+        }
+
         if (err.name === 'TokenExpiredError') {
             return res.status(401).json({ error: 'Token expired.' });
         }

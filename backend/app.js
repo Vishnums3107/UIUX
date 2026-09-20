@@ -8,9 +8,34 @@ const lessonRoutes = require('./routes/lessons');
 const attemptRoutes = require('./routes/attempts');
 const adminRoutes = require('./routes/admin');
 const leaderboardRoutes = require('./routes/leaderboard');
+const telemetryRoutes = require('./routes/telemetry');
+const ttsRoutes = require('./routes/tts');
+const assistantRoutes = require('./routes/assistant');
 const logger = require('./utils/logger');
 const { requestLogging } = require('./middleware/requestLogging');
 const { getReadinessReport: defaultGetReadinessReport } = require('./utils/readiness');
+
+const parseTrustProxyValue = (value) => {
+    if (value === undefined || value === null) {
+        return null;
+    }
+
+    const normalized = String(value).trim();
+    if (!normalized) {
+        return null;
+    }
+
+    const lower = normalized.toLowerCase();
+    if (lower === 'true') return true;
+    if (lower === 'false') return false;
+
+    const numeric = Number.parseInt(normalized, 10);
+    if (Number.isFinite(numeric) && String(numeric) === normalized) {
+        return numeric;
+    }
+
+    return normalized;
+};
 
 const parseAllowedOrigins = () => {
     const raw = (process.env.FRONTEND_URL || '*')
@@ -52,10 +77,24 @@ const buildCorsOptions = () => {
 
 function createApp({ getReadinessReport = defaultGetReadinessReport } = {}) {
     const app = express();
+    const allowedOrigins = parseAllowedOrigins();
+    const trustProxy = parseTrustProxyValue(process.env.TRUST_PROXY);
 
-    if (process.env.TRUST_PROXY) {
-        app.set('trust proxy', process.env.TRUST_PROXY);
+    if (trustProxy !== null) {
+        app.set('trust proxy', trustProxy);
     }
+
+    if (process.env.NODE_ENV === 'production' && allowedOrigins.includes('*')) {
+        logger.warn('cors_wildcard_configured_in_production', {
+            message: 'Wildcard FRONTEND_URL is blocked in production. Configure exact origins.'
+        });
+    }
+
+    logger.info('runtime_network_config', {
+        environment: process.env.NODE_ENV || 'development',
+        corsAllowedOrigins: allowedOrigins,
+        trustProxy: trustProxy !== null ? trustProxy : false
+    });
 
     app.disable('x-powered-by');
     app.use(helmet());
@@ -77,6 +116,9 @@ function createApp({ getReadinessReport = defaultGetReadinessReport } = {}) {
     app.use('/api/attempts', attemptRoutes);
     app.use('/api/admin', adminRoutes);
     app.use('/api/leaderboard', leaderboardRoutes);
+    app.use('/api/telemetry', telemetryRoutes);
+    app.use('/api/tts', ttsRoutes);
+    app.use('/api/assistant', assistantRoutes);
 
     app.get('/api/health', (req, res) => {
         res.json({

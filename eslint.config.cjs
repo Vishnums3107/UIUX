@@ -34,7 +34,8 @@ module.exports = [
                 clearTimeout: 'readonly',
                 setInterval: 'readonly',
                 clearInterval: 'readonly',
-                fetch: 'readonly'
+                fetch: 'readonly',
+                URL: 'readonly'
             }
         },
         rules: baseRules
@@ -64,6 +65,9 @@ module.exports = [
                 clearInterval: 'readonly',
                 requestAnimationFrame: 'readonly',
                 cancelAnimationFrame: 'readonly'
+                ,
+                fetch: 'readonly',
+                performance: 'readonly'
             }
         },
         rules: baseRules

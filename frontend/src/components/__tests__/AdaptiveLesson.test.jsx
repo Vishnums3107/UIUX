@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import AdaptiveLesson from '../AdaptiveLesson';
 
 const baseLesson = {
@@ -17,6 +17,7 @@ function renderLesson(props = {}) {
         <AdaptiveLesson
             lesson={{ ...baseLesson, ...props.lesson }}
             level={props.level || 'Intermediate'}
+            adaptiveUi={props.adaptiveUi}
             onSubmit={props.onSubmit}
             onAnswerChange={props.onAnswerChange}
             onHintUsed={props.onHintUsed}
@@ -45,10 +46,19 @@ describe('AdaptiveLesson UI behavior', () => {
                 this.text = text;
                 this.lang = '';
                 this.rate = 1;
+                this.pitch = 1;
                 this.voice = null;
+                this.onstart = null;
                 this.onend = null;
                 this.onerror = null;
             }
+        };
+
+        // Mock Audio so Google TTS path fails → triggers Web Speech fallback
+        global.Audio = class {
+            constructor() { this.onended = null; this.onerror = null; }
+            play() { return Promise.reject(new Error('No audio in test')); }
+            pause() {}
         };
     });
 
@@ -61,6 +71,30 @@ describe('AdaptiveLesson UI behavior', () => {
 
         expect(onHintUsed).toHaveBeenCalledTimes(1);
         expect(screen.getByText(/Hint:/i)).toBeInTheDocument();
+    });
+
+    test('support mode reveals hint and guidance immediately', () => {
+        renderLesson({
+            level: 'Intermediate',
+            adaptiveUi: {
+                mode: 'support',
+                recommendedDifficulty: 'Beginner',
+                coach: {
+                    eyebrow: 'Adaptive Support',
+                    microcopy: 'The interface is easing the load.',
+                    pacingLabel: 'Guided Recovery'
+                },
+                ui: {
+                    showHintsByDefault: true,
+                    showStepGuidance: true,
+                    singleColumnOptions: true
+                }
+            }
+        });
+
+        expect(screen.getByText(/Hint:/i)).toBeInTheDocument();
+        expect(screen.getByText(/Steps:/i)).toBeInTheDocument();
+        expect(screen.getByText(/Adaptive Support/i)).toBeInTheDocument();
     });
 
     test('correct submit triggers success feedback and onSubmit payload', () => {
@@ -91,6 +125,25 @@ describe('AdaptiveLesson UI behavior', () => {
         fireEvent.click(screen.getByRole('button', { name: /Retry/i }));
         expect(onRetry).toHaveBeenCalledTimes(1);
         expect(screen.queryByText(/Incorrect\./i)).not.toBeInTheDocument();
+    });
+
+    test('challenge mode uses a tighter submit CTA', () => {
+        renderLesson({
+            adaptiveUi: {
+                mode: 'challenge',
+                recommendedDifficulty: 'Advanced',
+                coach: {
+                    eyebrow: 'Adaptive Challenge',
+                    microcopy: 'Performance is strong.',
+                    pacingLabel: 'Fast Precision'
+                },
+                ui: {
+                    compactMode: true
+                }
+            }
+        });
+
+        expect(screen.getByRole('button', { name: /Lock Answer/i })).toBeInTheDocument();
     });
 
     test('uses lesson audio URL when available', async () => {
@@ -126,13 +179,45 @@ describe('AdaptiveLesson UI behavior', () => {
         expect(play).toHaveBeenCalledTimes(1);
     });
 
-    test('falls back to speech synthesis when no lesson audio URL is set', () => {
+    test('falls back to speech synthesis when no lesson audio URL is set', async () => {
         const onActivity = vi.fn();
         renderLesson({ lesson: { audio_url: '' }, onActivity });
 
-        fireEvent.click(screen.getByTitle(/Listen to Tamil pronunciation/i));
+        await act(async () => {
+            fireEvent.click(screen.getByTitle(/Listen to Tamil pronunciation/i));
+            // Allow the Google TTS Audio.play() rejection + fallback to resolve
+            await new Promise((r) => setTimeout(r, 50));
+        });
 
         expect(onActivity).toHaveBeenCalledTimes(1);
         expect(window.speechSynthesis.speak).toHaveBeenCalledTimes(1);
+    });
+
+    test('applies adaptive pronunciation nudge and speech cadence from UI config', async () => {
+        renderLesson({
+            lesson: { audio_url: '' },
+            adaptiveUi: {
+                mode: 'support',
+                ui: {
+                    audioPrompt: {
+                        speakRate: 0.82,
+                        pitch: 0.96,
+                        pronunciationNudge: 'Repeat once aloud before submitting.'
+                    }
+                }
+            }
+        });
+
+        expect(screen.getByText(/Repeat once aloud before submitting\./i)).toBeInTheDocument();
+
+        await act(async () => {
+            fireEvent.click(screen.getByTitle(/Listen to Tamil pronunciation/i));
+            // Allow the Google TTS Audio.play() rejection + fallback to resolve
+            await new Promise((r) => setTimeout(r, 50));
+        });
+
+        const utterance = window.speechSynthesis.speak.mock.calls[0][0];
+        expect(utterance.rate).toBe(0.82);
+        expect(utterance.pitch).toBe(0.96);
     });
 });

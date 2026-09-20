@@ -2,6 +2,10 @@
 
 > Full 10-phase development roadmap from concept to production deployment.
 
+> LEGACY NOTE: This roadmap is a historical implementation timeline and includes earlier content-count snapshots.
+> For active launch scope, release gates, and sign-off criteria, use [DEPLOYMENT_READY_IMPLEMENTATION_PLAN.md](DEPLOYMENT_READY_IMPLEMENTATION_PLAN.md).
+> Current curriculum baseline is 333 lessons (see `backend/seed.js` and `backend/tests/seed.validation.test.js`).
+
 ---
 
 ## Phase 1: Project Foundation & Architecture Design ✅
@@ -139,8 +143,8 @@
 - [x] Implement time efficiency score (30s expected, linear degradation to 3×)
 - [x] Implement error rate normalization (max 5 errors/question)
 - [x] Implement hint dependency score (max 3 hints/question)
-- [x] Apply weighted formula: `0.4×success + 0.2×time − 0.2×errors − 0.2×hints`
-- [x] Implement score smoothing (60% new + 40% current)
+- [x] Apply weighted multi-signal formula with recency weighting and retry/idle signals
+- [x] Implement confidence-aware score smoothing (higher trust with larger sample size)
 - [x] Clamp final score to 0–100 range
 - [x] Map score to levels: 0–30 Beginner, 31–70 Intermediate, 71–100 Advanced
 

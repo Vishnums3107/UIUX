@@ -1,3 +1,7 @@
+> LEGACY SPEC NOTE: This file is an archived curriculum-generation prompt and contains historical target counts.
+> Do not use this file as launch-readiness source of truth.
+> Use [DEPLOYMENT_READY_IMPLEMENTATION_PLAN.md](DEPLOYMENT_READY_IMPLEMENTATION_PLAN.md) for active execution governance.
+
 You are building the complete Tamil learning curriculum for the "தமிழ் கற்போம்" 
 adaptive learning platform. Your goal is to create a full, fluency-focused lesson 
 system — from absolute zero Tamil knowledge to conversational fluency — using the 
@@ -10,7 +14,8 @@ MISSION
 Replace/extend the current 53-question seed with a COMPLETE fluency curriculum of 
 300+ lessons across 10 progressive stages. Every lesson must be playable, scoreable, 
 and feed into the existing skill score formula:
-  skill = (0.4 × success_rate) + (0.2 × time_efficiency) − (0.2 × error_rate) − (0.2 × hint_dependency)
+  raw = (0.45 × success_rate) + (0.20 × time_efficiency) + (0.15 × error_control) + (0.10 × hint_independence) + (0.06 × retry_control) + (0.04 × focus_score)
+  final_skill = w × raw + (1 − w) × current_skill, where w = 0.35 + 0.30 × min(1, N/20)
 
 The existing adaptive UI already handles Beginner / Intermediate / Advanced rendering.
 Your job is purely the CONTENT ENGINE + EXERCISE TYPES.

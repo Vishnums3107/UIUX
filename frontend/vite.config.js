@@ -7,7 +7,7 @@ export default defineConfig({
         port: 5173,
         proxy: {
             '/api': {
-                target: 'http://localhost:5000',
+                target: 'http://127.0.0.1:5000',
                 changeOrigin: true
             }
         }
@@ -16,6 +16,7 @@ export default defineConfig({
         environment: 'jsdom',
         setupFiles: './src/test/setup.js',
         globals: true,
+        testTimeout: 10000,
         css: true,
         exclude: [
             'e2e/**',

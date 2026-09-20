@@ -2,6 +2,31 @@
 
 > Complete reference for core REST API endpoints with request/response examples.
 
+> Launch Readiness Governance: [DEPLOYMENT_READY_IMPLEMENTATION_PLAN.md](DEPLOYMENT_READY_IMPLEMENTATION_PLAN.md) is the canonical execution and sign-off source.
+
+## Response Freeze Notice (Phase 0)
+
+Response structures for critical endpoints are frozen and enforced by OpenAPI-backed automated contract tests.
+
+- OpenAPI contract source: `docs/openapi/critical-endpoints.openapi.json`
+- OpenAPI contract validation test: `backend/tests/integration.openapi-contract.test.js`
+- Freeze enforcement test (additional guard): `backend/tests/integration.api-contract-freeze.test.js`
+- Breaking changes to response shapes are not allowed without explicit approval from Engineering + QA and concurrent contract updates.
+- Response examples in this document are illustrative; automated contract tests are authoritative for field-level contract enforcement.
+- Critical endpoints under freeze:
+  - `POST /api/auth/register`
+  - `POST /api/auth/login`
+  - `GET /api/auth/profile`
+  - `GET /api/auth/adaptive-profile`
+  - `POST /api/auth/forgotpassword`
+  - `PUT /api/auth/resetpassword/:resettoken`
+  - `GET /api/lessons/categories`
+  - `GET /api/lessons/stages/progress`
+  - `POST /api/attempts`
+  - `GET /api/attempts/stats`
+  - `GET /api/admin/analytics`
+  - `GET /api/admin/users/:id/progress`
+
 **Base URL:** `http://localhost:5000/api` (development) or `https://your-api.onrender.com/api` (production)
 
 **Authentication:** Bearer token in `Authorization` header for protected endpoints  
@@ -46,6 +71,19 @@ Register a new user account.
     "skill_score": 50,
     "level": "Intermediate",
     "lessons_completed": 0,
+    "adaptivePreferences": {
+      "modePreference": "auto",
+      "immersiveModeDefault": false
+    },
+    "adaptiveProfile": {
+      "recommendedMode": "balanced",
+      "recommendedDifficulty": "Intermediate",
+      "supportNeed": 36,
+      "challengeReadiness": 44,
+      "stabilityScore": 55,
+      "confidenceScore": 0,
+      "lastUpdatedAt": null
+    },
     "role": "user"
   }
 }
@@ -84,6 +122,19 @@ Authenticate and receive JWT token.
     "skill_score": 65,
     "level": "Intermediate",
     "lessons_completed": 12,
+    "adaptivePreferences": {
+      "modePreference": "auto",
+      "immersiveModeDefault": false
+    },
+    "adaptiveProfile": {
+      "recommendedMode": "balanced",
+      "recommendedDifficulty": "Intermediate",
+      "supportNeed": 42,
+      "challengeReadiness": 58,
+      "stabilityScore": 61,
+      "confidenceScore": 70,
+      "lastUpdatedAt": "2026-04-20T10:00:00.000Z"
+    },
     "role": "user"
   }
 }
@@ -117,10 +168,77 @@ Authorization: Bearer <token>
   "skill_score": 65,
   "level": "Intermediate",
   "lessons_completed": 12,
+  "adaptivePreferences": {
+    "modePreference": "auto",
+    "immersiveModeDefault": false
+  },
+  "adaptiveProfile": {
+    "recommendedMode": "balanced",
+    "recommendedDifficulty": "Intermediate",
+    "supportNeed": 42,
+    "challengeReadiness": 58,
+    "stabilityScore": 61,
+    "confidenceScore": 70,
+    "lastUpdatedAt": "2026-04-20T10:00:00.000Z"
+  },
   "role": "user",
   "createdAt": "2026-01-15T10:30:00.000Z"
 }
 ```
+
+---
+
+### GET `/api/auth/adaptive-profile`
+Get adaptive profile insights derived from recent attempts, including category-level support and challenge recommendations.
+
+**Auth Required:** 🔒 JWT
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Success Response (200):**
+```json
+{
+  "adaptivePreferences": {
+    "modePreference": "auto",
+    "immersiveModeDefault": false
+  },
+  "adaptiveProfile": {
+    "recommendedMode": "balanced",
+    "recommendedDifficulty": "Intermediate",
+    "supportNeed": 42,
+    "challengeReadiness": 58,
+    "stabilityScore": 61,
+    "confidenceScore": 70,
+    "lastUpdatedAt": "2026-04-20T10:00:00.000Z"
+  },
+  "categoryRecommendations": [
+    {
+      "category": "uyir",
+      "recommendedMode": "support",
+      "recommendedDifficulty": "Beginner",
+      "supportNeed": 78,
+      "challengeReadiness": 30,
+      "confidenceScore": 44,
+      "attemptCount": 9,
+      "successRate": 42,
+      "avgErrors": 1.7,
+      "avgHints": 1.0,
+      "avgRetries": 0.8,
+      "priorityScore": 78,
+      "reason": "Needs support: 42% accuracy with 1.7 avg errors and 1 avg hints."
+    }
+  ],
+  "generatedAt": "2026-04-21T00:00:00.000Z",
+  "attemptWindowSize": 24
+}
+```
+
+**Notes:**
+- `categoryRecommendations` may be an empty array when there is not enough recent category activity.
+- Recommendation values are normalized to help frontend adaptive UI decisions stay consistent across sessions.
 
 ---
 
@@ -133,7 +251,11 @@ Update the authenticated user's profile.
 ```json
 {
   "name": "Priya S",
-  "avatarId": "avatar-4"
+  "avatarId": "avatar-4",
+  "adaptivePreferences": {
+    "modePreference": "challenge",
+    "immersiveModeDefault": true
+  }
 }
 ```
 
@@ -142,6 +264,40 @@ Update the authenticated user's profile.
 |---|---|
 | `name` | Optional, 2–50 characters |
 | `avatarId` | Optional, string |
+| `adaptivePreferences.modePreference` | Optional, one of `auto`, `support`, `balanced`, `challenge` |
+| `adaptivePreferences.immersiveModeDefault` | Optional, boolean |
+
+**Success Response (200):**
+```json
+{
+  "id": "65a1b2c3d4e5f6g7h8i9j0k1",
+  "name": "Priya S",
+  "email": "priya@example.com",
+  "skill_score": 65,
+  "level": "Intermediate",
+  "avatarId": "avatar-4",
+  "adaptivePreferences": {
+    "modePreference": "challenge",
+    "immersiveModeDefault": true
+  },
+  "adaptiveProfile": {
+    "recommendedMode": "balanced",
+    "recommendedDifficulty": "Intermediate",
+    "supportNeed": 42,
+    "challengeReadiness": 58,
+    "stabilityScore": 61,
+    "confidenceScore": 70,
+    "lastUpdatedAt": "2026-04-20T10:00:00.000Z"
+  },
+  "role": "user"
+}
+```
+
+---|---|
+| `name` | Optional, 2–50 characters |
+| vatarId | Optional, string |
+| daptivePreferences.modePreference | Optional, one of uto, support, alanced, challenge |
+| daptivePreferences.immersiveModeDefault | Optional, boolean |
 
 **Success Response (200):**
 ```json
@@ -215,6 +371,53 @@ Reset password using a valid token.
 | Code | Body | Cause |
 |---|---|---|
 | 400 | `{ "error": "Invalid or expired token" }` | Token invalid or expired |
+
+---
+
+## Telemetry Endpoints
+
+### POST `/api/telemetry/frontend-error`
+Capture frontend runtime error telemetry for operational observability.
+
+**Auth Required:** No (public ingestion endpoint; payload is validated and additionally protected by route-level telemetry rate limiting)
+
+**Request Body:**
+```json
+{
+  "message": "ChunkLoadError: Loading chunk 4 failed.",
+  "source": "window.unhandledrejection",
+  "severity": "high",
+  "stack": "Error: ChunkLoadError\n at app.js:1:1",
+  "context": {
+    "route": "/dashboard",
+    "component": "Dashboard",
+    "release": "2026.04.20-rc1",
+    "href": "https://app.example.com/dashboard",
+    "userAgent": "Mozilla/5.0 ..."
+  }
+}
+```
+
+**Validation Rules:**
+| Field | Rules |
+|---|---|
+| `message` | Required, 1-1000 chars |
+| `severity` | Optional, one of `low`, `medium`, `high`, `critical` |
+| `source` | Optional, max 120 chars |
+| `stack` | Optional, max 8000 chars |
+| `context` | Optional object with bounded string fields |
+
+**Success Response (202):**
+```json
+{
+  "accepted": true
+}
+```
+
+**Error Responses:**
+| Code | Body | Cause |
+|---|---|---|
+| 400 | `{ "errors": [{ "msg": "..." }] }` | Validation failure |
 
 ---
 
@@ -346,6 +549,15 @@ Submit a lesson attempt. Triggers skill score recalculation.
     "skill_score": 68,
     "level": "Intermediate",
     "lessons_completed": 13,
+    "adaptiveProfile": {
+      "recommendedMode": "balanced",
+      "recommendedDifficulty": "Intermediate",
+      "supportNeed": 42,
+      "challengeReadiness": 58,
+      "stabilityScore": 61,
+      "confidenceScore": 70,
+      "lastUpdatedAt": "2026-04-20T10:00:00.000Z"
+    },
     "details": {
       "successRate": 80,
       "timeEfficiency": 100,
@@ -816,3 +1028,6 @@ Responses include standard security headers (Helmet) such as:
 | Code | Body | Cause |
 |---|---|---|
 | 500 | `{ "error": "Internal server error" }` | Unhandled server error |
+
+
+

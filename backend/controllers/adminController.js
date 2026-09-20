@@ -47,7 +47,7 @@ const getAnalytics = async (req, res) => {
         res.json({
             totalUsers: userCount,
             levelDistribution: levelDist,
-            averages: avgScores[0] || { avgSkill: 0, avgLessons: 0 },
+            averages: avgScores[0] || { _id: null, avgSkill: 0, avgLessons: 0 },
             recentActivity
         });
     } catch (err) {

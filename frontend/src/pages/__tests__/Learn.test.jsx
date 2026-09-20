@@ -3,11 +3,22 @@ import Learn from '../Learn';
 
 const updateUserMock = vi.fn();
 const lessonGetAllMock = vi.fn();
+const lessonGetStageMock = vi.fn();
+const lessonGetNextInStageMock = vi.fn();
 const attemptSubmitMock = vi.fn();
+const attemptSubmitMasteryMock = vi.fn();
 const attemptGetReviewQueueMock = vi.fn();
+const authUpdateProfileMock = vi.fn();
 
 let authState = {
-    user: { level: 'Intermediate', skill_score: 50, lessons_completed: 0, name: 'Priya' },
+    user: {
+        level: 'Intermediate',
+        skill_score: 50,
+        lessons_completed: 0,
+        name: 'Priya',
+        adaptivePreferences: { modePreference: 'auto', immersiveModeDefault: false },
+        adaptiveProfile: { recommendedMode: 'balanced', recommendedDifficulty: 'Intermediate' }
+    },
     updateUser: updateUserMock
 };
 
@@ -32,11 +43,17 @@ vi.mock('../../context/AuthContext', () => ({
 
 vi.mock('../../services/api', () => ({
     lessonAPI: {
-        getAll: (...args) => lessonGetAllMock(...args)
+        getAll: (...args) => lessonGetAllMock(...args),
+        getStage: (...args) => lessonGetStageMock(...args),
+        getNextInStage: (...args) => lessonGetNextInStageMock(...args)
     },
     attemptAPI: {
         submit: (...args) => attemptSubmitMock(...args),
+        submitMastery: (...args) => attemptSubmitMasteryMock(...args),
         getReviewQueue: (...args) => attemptGetReviewQueueMock(...args)
+    },
+    authAPI: {
+        updateProfile: (...args) => authUpdateProfileMock(...args)
     }
 }));
 
@@ -70,11 +87,26 @@ const skillUpdateFixture = {
     skill_score: 61,
     level: 'Intermediate',
     lessons_completed: 1,
-    current_streak: 1
+    current_streak: 1,
+    adaptiveProfile: {
+        recommendedMode: 'balanced',
+        recommendedDifficulty: 'Intermediate'
+    }
 };
 
 function primeSuccessfulLoad() {
     lessonGetAllMock.mockResolvedValue({ data: [lessonFixture] });
+    lessonGetStageMock.mockResolvedValue({ data: [lessonFixture] });
+    lessonGetNextInStageMock.mockResolvedValue({ data: { lesson: lessonFixture } });
+    authUpdateProfileMock.mockResolvedValue({
+        data: {
+            ...authState.user,
+            adaptivePreferences: {
+                modePreference: 'auto',
+                immersiveModeDefault: false
+            }
+        }
+    });
     attemptGetReviewQueueMock.mockResolvedValue({
         data: { total: 1, items: [{ lesson: lessonFixture, stats: { avgScore: 0.2, incorrectCount: 1, avgErrors: 2, avgHints: 1 } }] }
     });
@@ -89,7 +121,14 @@ describe('Learn flow behaviors', () => {
         window.history.replaceState({}, '', '/learn');
 
         authState = {
-            user: { level: 'Intermediate', skill_score: 50, lessons_completed: 0, name: 'Priya' },
+            user: {
+                level: 'Intermediate',
+                skill_score: 50,
+                lessons_completed: 0,
+                name: 'Priya',
+                adaptivePreferences: { modePreference: 'auto', immersiveModeDefault: false },
+                adaptiveProfile: { recommendedMode: 'balanced', recommendedDifficulty: 'Intermediate' }
+            },
             updateUser: updateUserMock
         };
 
@@ -176,7 +215,14 @@ describe('Learn flow behaviors', () => {
         vi.useFakeTimers();
 
         authState = {
-            user: { level: 'Advanced', skill_score: 80, lessons_completed: 0, name: 'Priya' },
+            user: {
+                level: 'Advanced',
+                skill_score: 80,
+                lessons_completed: 0,
+                name: 'Priya',
+                adaptivePreferences: { modePreference: 'auto', immersiveModeDefault: false },
+                adaptiveProfile: { recommendedMode: 'challenge', recommendedDifficulty: 'Advanced' }
+            },
             updateUser: updateUserMock
         };
         primeSuccessfulLoad();
@@ -230,6 +276,123 @@ describe('Learn flow behaviors', () => {
             expect(attemptSubmitMock).toHaveBeenCalledWith(expect.objectContaining({
                 lesson_id: lessonFixture._id
             }));
+        });
+    });
+
+    test('stage mode loads stage lessons from query string', async () => {
+        window.history.replaceState({}, '', '/learn?stage=2');
+        primeSuccessfulLoad();
+
+        render(<Learn />);
+
+        await waitFor(() => {
+            expect(lessonGetStageMock).toHaveBeenCalledWith(2);
+        });
+
+        expect(await screen.findByText(/Stage Mode/i)).toBeInTheDocument();
+    });
+
+    test('category mode from query string auto-loads selected category', async () => {
+        window.history.replaceState({}, '', '/learn?category=grammar');
+        primeSuccessfulLoad();
+
+        render(<Learn />);
+
+        await waitFor(() => {
+            expect(lessonGetAllMock).toHaveBeenCalledWith({
+                category: 'grammar',
+                difficulty: 'Intermediate'
+            });
+        });
+
+        expect(screen.queryByText(/Choose a Category/i)).not.toBeInTheDocument();
+    });
+
+    test('stage flow submits mastery checkpoint and shows unlocked stage banner', async () => {
+        window.history.replaceState({}, '', '/learn?stage=1');
+
+        const stageLesson = { ...lessonFixture, _id: 'lesson-1' };
+        const masteryLesson = {
+            ...lessonFixture,
+            _id: 'mastery-1',
+            question: 'Mastery Checkpoint',
+            isMasteryTest: true,
+            exerciseType: 'mastery_test',
+            unlocksStage: 2
+        };
+
+        lessonGetStageMock.mockResolvedValue({ data: [stageLesson, masteryLesson] });
+        lessonGetNextInStageMock.mockResolvedValue({ data: { lesson: stageLesson } });
+        attemptSubmitMock.mockResolvedValue({
+            data: { skillUpdate: skillUpdateFixture }
+        });
+        attemptSubmitMasteryMock.mockResolvedValue({
+            data: {
+                passed: true,
+                unlockedStage: 2,
+                user: {
+                    xp: 210,
+                    totalXP: 210,
+                    xpEarned: 200,
+                    unlockedStages: [1, 2],
+                    masteryPassedStages: [1]
+                },
+                newBadges: [{ name: 'Mastery Stage 1', icon: '🏅' }]
+            }
+        });
+
+        render(<Learn />);
+        expect(await screen.findByText(/Stage Mode/i)).toBeInTheDocument();
+
+        fireEvent.click(screen.getByText('submit-correct'));
+        await waitFor(() => {
+            expect(attemptSubmitMock).toHaveBeenCalledTimes(1);
+        });
+
+        await waitFor(() => {
+            expect(screen.getByText(/Question 2 of 2/i)).toBeInTheDocument();
+        }, { timeout: 3000 });
+
+        await waitFor(() => {
+            expect(screen.getByTestId('adaptive-lesson-mock')).toBeInTheDocument();
+        });
+
+        fireEvent.click(screen.getByText('submit-correct'));
+        await waitFor(() => {
+            expect(attemptSubmitMasteryMock).toHaveBeenCalledTimes(1);
+        });
+
+        expect(attemptSubmitMasteryMock).toHaveBeenCalledWith(expect.objectContaining({
+            stageNumber: 1
+        }));
+
+        expect(await screen.findByText(/New stage unlocked: Stage 2/i, {}, { timeout: 4000 })).toBeInTheDocument();
+    }, 10000);
+
+    test('manual support mode lowers requested lesson difficulty on category launch', async () => {
+        authState = {
+            user: {
+                level: 'Intermediate',
+                skill_score: 40,
+                lessons_completed: 0,
+                name: 'Priya',
+                adaptivePreferences: { modePreference: 'auto', immersiveModeDefault: false },
+                adaptiveProfile: { recommendedMode: 'support', recommendedDifficulty: 'Beginner' }
+            },
+            updateUser: updateUserMock
+        };
+
+        primeSuccessfulLoad();
+        render(<Learn />);
+
+        fireEvent.click(screen.getByRole('button', { name: /^Support$/i }));
+        fireEvent.click(screen.getByText(/Uyir Ezhuthukkal/i));
+
+        await waitFor(() => {
+            expect(lessonGetAllMock).toHaveBeenCalledWith({
+                category: 'uyir',
+                difficulty: 'Beginner'
+            });
         });
     });
 });

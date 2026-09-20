@@ -8,7 +8,7 @@ const getLeaderboard = async (req, res) => {
     try {
         // Fetch top 50 users based on score, then streak
         const topUsers = await User.find({})
-            .select('name skill_score level current_streak badges') // Only send necessary public info
+            .select('name skill_score level current_streak badges avatarId totalXP xp') // Public profile fields
             .sort({ skill_score: -1, current_streak: -1 }) // Highest score first, then highest streak
             .limit(50);
 

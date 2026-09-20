@@ -2,6 +2,8 @@
 
 > Exhaustive feature-by-feature checklist covering all modules. Every item maps to actual implemented code.
 
+> Launch Readiness Governance: [DEPLOYMENT_READY_IMPLEMENTATION_PLAN.md](DEPLOYMENT_READY_IMPLEMENTATION_PLAN.md) is the canonical execution and sign-off source.
+
 ---
 
 ## 1️⃣ Authentication System
@@ -82,7 +84,7 @@
 - [x] Explanation on correct answer
 
 ### Seed Data
-- [x] 53 total lessons across all categories
+- [x] 333 total lessons across all 10 stages
 - [x] Database seeder script (`npm run seed`)
 - [x] Auto-clear existing lessons before re-seeding
 - [x] Summary table output after seeding
@@ -125,18 +127,24 @@
 ## 4️⃣ Skill Estimation Engine
 
 ### Formula
-- [x] `skill_score = (0.4 × success_rate) + (0.2 × time_efficiency) − (0.2 × error_rate) − (0.2 × hint_dependency)`
+- [x] `raw = 0.45×success + 0.20×time + 0.15×error_control + 0.10×hint_independence + 0.06×retry_control + 0.04×focus`
+- [x] `error_control = 100 - error_rate`, `hint_independence = 100 - hint_dependency`
+- [x] `retry_control = 100 - retry_dependency`, `focus = 100 - idle_penalty`
 
 ### Sub-Score Calculations
-- [x] **Success Rate** (0–100): Percentage of correct answers in rolling window
-- [x] **Time Efficiency** (0–100): Linear degradation from expected 30s up to 3× (90s)
-- [x] **Error Rate** (0–100): Average errors normalized to max 5 per question
-- [x] **Hint Dependency** (0–100): Average hints normalized to max 3 per question
+- [x] **Success Rate** (0-100): Recency-weighted percentage of correct answers
+- [x] **Time Efficiency** (0-100): Active time (time_spent - idle_time), linear degradation from expected 30s up to 3x
+- [x] **Error Rate** (0-100): Recency-weighted average errors normalized to max 5 per question
+- [x] **Hint Dependency** (0-100): Recency-weighted average hints normalized to max 3 per question
+- [x] **Retry Dependency** (0-100): Recency-weighted average retries normalized to max 4 per question
+- [x] **Idle Penalty** (0-100): Recency-weighted idle fraction of each attempt
 
 ### Score Processing
 - [x] Rolling window of last 20 attempts
+- [x] Recency decay weighting (`0.9^i`, newest attempt first)
 - [x] Raw score clamped to 0–100
-- [x] Score smoothing: `final = 0.6 × new + 0.4 × current` (prevents jarring jumps)
+- [x] Confidence-aware smoothing: `w = 0.35 + 0.30 × min(1, N/20)`
+- [x] Final blend: `final = w × new + (1 − w) × current`
 - [x] Final score clamped to 0–100
 - [x] Score rounded to integer
 
@@ -203,7 +211,7 @@
 
 ### Automatic Downgrade
 - [x] Score decrease triggers level re-evaluation via `updateLevel()`
-- [x] Smoothing formula prevents erratic level switching (`0.6 × new + 0.4 × old`)
+- [x] Confidence-aware smoothing prevents erratic level switching while adapting faster with enough evidence
 - [x] Level change notifications in API response (`levelChanged`, `previousLevel`, `adaptationDirection`)
 
 ### Recovery

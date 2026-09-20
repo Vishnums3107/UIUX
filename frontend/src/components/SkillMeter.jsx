@@ -13,7 +13,7 @@ export default function SkillMeter({ score = 0, size = 180, strokeWidth = 12 }) 
     const isDark = theme === 'dark';
 
     const level = score <= 30 ? 'Beginner' : score <= 70 ? 'Intermediate' : 'Advanced';
-    const levelColor = score <= 30 ? '#10b981' : score <= 70 ? '#f59e0b' : '#f43f5e';
+    const levelColor = score <= 30 ? '#38bdf8' : score <= 70 ? '#2563eb' : '#1d4ed8';
 
     useEffect(() => {
         const canvas = canvasRef.current;
@@ -47,7 +47,7 @@ export default function SkillMeter({ score = 0, size = 180, strokeWidth = 12 }) 
             // Active arc with gradient
             const endAngle = startAngle + (totalArc * currentRef.current / 100);
             const gradient = ctx.createLinearGradient(0, 0, size, size);
-            gradient.addColorStop(0, '#d946ef');
+            gradient.addColorStop(0, '#60a5fa');
             gradient.addColorStop(0.5, '#0ea5e9');
             gradient.addColorStop(1, levelColor);
 

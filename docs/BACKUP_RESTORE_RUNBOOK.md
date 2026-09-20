@@ -81,6 +81,18 @@ export BACKUP_ARCHIVE='./backups/2026-03-11_09-00-00/tamil-learning.archive.gz'
 mongorestore --uri="$TARGET_URI" --gzip --archive="$BACKUP_ARCHIVE" --drop
 ```
 
+Repository automation option (local/non-production):
+
+```bash
+cd backend
+npm run drill:restore
+```
+
+This command runs a self-contained restore drill using `mongodump`/`mongorestore` and writes timestamped evidence files to:
+
+- `docs/release-evidence/restore-drill-<timestamp>.md`
+- `docs/release-evidence/restore-drill-<timestamp>.json`
+
 Validation checklist after restore:
 
 1. Count documents in key collections:
